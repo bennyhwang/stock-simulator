@@ -110,6 +110,7 @@
       <button class="active" onclick="switchTab('dashboard')">儀表板</button>
       <button onclick="switchTab('trade')">交易</button>
       <button onclick="switchTab('portfolio')">持倉</button>
+      <button onclick="switchTab('plans')">投資組合</button>
       <button onclick="switchTab('history')">交易紀錄</button>
     </div>
     <div class="user-info">
@@ -152,12 +153,19 @@
         </div>
         <div class="trade-form">
           <div></div>
+          <div class="form-group"><label>所屬組合</label><select id="tradePlan" style="padding:0.6rem 0.8rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;width:100%;"><option value="">不指定組合</option></select></div>
           <div class="form-group"><label>數量 (股)</label><input type="number" id="tradeQty" min="1" value="100"></div>
           <div class="form-group"><label>交易類型</label><select id="tradeType"><option value="buy">買入</option><option value="sell">賣出</option></select></div>
           <div style="display:flex;gap:0.5rem;">
             <button class="btn-buy" onclick="executeTrade()">下單</button>
-          </div>
-        </div>
+    </div>
+    <div class="card" id="planSummaryCard" style="display:none;">
+      <h2>組合盈利</h2>
+      <div class="table-wrap">
+        <table><thead><tr><th>組合</th><th>市值</th><th>盈虧</th></tr></thead><tbody id="planSummaries"></tbody></table>
+      </div>
+    </div>
+  </div>
         <div class="error" id="tradeError" style="margin-top:0.5rem;"></div>
       </div>
     </div>
@@ -174,12 +182,23 @@
 
   <!-- Portfolio -->
   <div id="secPortfolio" class="section">
+    <div id="planPortfolioFilter" style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;"></div>
     <div class="card">
       <h2>持倉明細</h2>
       <div class="table-wrap">
-        <table><thead><tr><th>股票</th><th>名稱</th><th>持股數量</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th><th>操作</th></tr></thead><tbody id="portfolioDetail"></tbody></table>
+        <table><thead><tr><th>股票</th><th>名稱</th><th>組合</th><th>持股數量</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th><th>操作</th></tr></thead><tbody id="portfolioDetail"></tbody></table>
       </div>
     </div>
+  </div>
+
+  <!-- Plans -->
+  <div id="secPlans" class="section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+      <h2 style="color:#f0f6fc;">我的投資組合</h2>
+      <button onclick="showCreatePlan()" style="padding:0.5rem 1.2rem;background:#238636;color:#fff;border:none;border-radius:8px;cursor:pointer;">+ 新建組合</button>
+    </div>
+    <div id="plansList"></div>
+    <div id="planDetail" style="display:none;margin-top:1rem;"></div>
   </div>
 
   <!-- History -->
@@ -191,7 +210,7 @@
         <button onclick="loadHistory()">搜尋</button>
       </div>
       <div class="table-wrap">
-        <table><thead><tr><th>時間</th><th>股票</th><th>名稱</th><th>類型</th><th>數量</th><th>成交價</th><th>金額</th></tr></thead><tbody id="historyTable"></tbody></table>
+        <table><thead><tr><th>時間</th><th>股票</th><th>名稱</th><th>類型</th><th>數量</th><th>成交價</th><th>金額</th><th>組合</th></tr></thead><tbody id="historyTable"></tbody></table>
       </div>
     </div>
   </div>

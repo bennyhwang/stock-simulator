@@ -249,7 +249,7 @@ $$;
 GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
 
 CREATE OR REPLACE FUNCTION get_trader_history(p_username TEXT, p_search TEXT DEFAULT NULL)
-RETURNS TABLE(symbol TEXT, name TEXT, type TEXT, quantity BIGINT, price DECIMAL, created_at TIMESTAMPTZ)
+RETURNS TABLE(symbol TEXT, name TEXT, type TEXT, quantity BIGINT, price DECIMAL, created_at TIMESTAMPTZ, plan_id BIGINT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_trader_id BIGINT;
@@ -257,7 +257,7 @@ BEGIN
   SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
   RETURN QUERY
-  SELECT t.symbol, t.name, t.type, t.quantity, t.price, t.created_at
+  SELECT t.symbol, t.name, t.type, t.quantity, t.price, t.created_at, t.plan_id
   FROM transactions t
   WHERE t.trader_id = v_trader_id
     AND (p_search IS NULL OR t.symbol ILIKE '%' || p_search || '%')
@@ -266,3 +266,185 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_history TO anon;
+
+-- ============ 组合管理（投资组合） ============
+
+CREATE TABLE IF NOT EXISTS trading_plans (
+  id BIGSERIAL PRIMARY KEY,
+  trader_id BIGINT NOT NULL REFERENCES traders(id),
+  plan_name TEXT NOT NULL,
+  strategy TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE trading_plans ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_all_trading_plans" ON trading_plans FOR ALL TO anon USING (true) WITH CHECK (true);
+
+CREATE TABLE IF NOT EXISTS plan_stocks (
+  id BIGSERIAL PRIMARY KEY,
+  plan_id BIGINT NOT NULL REFERENCES trading_plans(id) ON DELETE CASCADE,
+  symbol TEXT NOT NULL,
+  name TEXT,
+  UNIQUE(plan_id, symbol)
+);
+ALTER TABLE plan_stocks ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "anon_all_plan_stocks" ON plan_stocks FOR ALL TO anon USING (true) WITH CHECK (true);
+
+ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS plan_id BIGINT REFERENCES trading_plans(id) ON DELETE SET NULL;
+ALTER TABLE transactions ADD COLUMN IF NOT EXISTS plan_id BIGINT REFERENCES trading_plans(id) ON DELETE SET NULL;
+
+DROP FUNCTION IF EXISTS execute_trade(TEXT,TEXT,TEXT,DECIMAL,BIGINT,TEXT);
+CREATE OR REPLACE FUNCTION execute_trade(
+  p_username TEXT, p_symbol TEXT, p_name TEXT,
+  p_price DECIMAL, p_quantity BIGINT, p_type TEXT,
+  p_plan_id BIGINT DEFAULT NULL
+) RETURNS TEXT
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_trader_id BIGINT;
+  v_cash DECIMAL(18,2);
+  v_cost DECIMAL(18,2);
+  v_held BIGINT;
+BEGIN
+  SELECT id, cash_balance INTO v_trader_id, v_cash FROM traders WHERE username = p_username;
+  IF NOT FOUND THEN RETURN 'not_found'; END IF;
+
+  IF p_type = 'buy' THEN
+    v_cost := p_price * p_quantity;
+    IF v_cash < v_cost THEN RETURN 'insufficient_funds'; END IF;
+    UPDATE traders SET cash_balance = cash_balance - v_cost WHERE id = v_trader_id;
+    INSERT INTO portfolios (trader_id, symbol, name, quantity, avg_cost, plan_id)
+    VALUES (v_trader_id, p_symbol, p_name, p_quantity, p_price, p_plan_id)
+    ON CONFLICT (trader_id, symbol) DO UPDATE SET
+      quantity = portfolios.quantity + p_quantity,
+      avg_cost = ROUND((portfolios.avg_cost * portfolios.quantity + p_price * p_quantity)::numeric / (portfolios.quantity + p_quantity), 2);
+    INSERT INTO transactions (trader_id, symbol, name, type, quantity, price, plan_id)
+    VALUES (v_trader_id, p_symbol, p_name, 'buy', p_quantity, p_price, p_plan_id);
+    RETURN 'ok';
+
+  ELSIF p_type = 'sell' THEN
+    SELECT quantity INTO v_held FROM portfolios WHERE trader_id = v_trader_id AND symbol = p_symbol;
+    IF NOT FOUND OR v_held < p_quantity THEN RETURN 'no_shares'; END IF;
+    UPDATE traders SET cash_balance = cash_balance + (p_price * p_quantity) WHERE id = v_trader_id;
+    UPDATE portfolios SET quantity = quantity - p_quantity
+    WHERE trader_id = v_trader_id AND symbol = p_symbol;
+    DELETE FROM portfolios WHERE trader_id = v_trader_id AND symbol = p_symbol AND quantity <= 0;
+    INSERT INTO transactions (trader_id, symbol, name, type, quantity, price, plan_id)
+    VALUES (v_trader_id, p_symbol, p_name, 'sell', p_quantity, p_price, p_plan_id);
+    RETURN 'ok';
+  END IF;
+  RETURN 'invalid_type';
+END;
+$$;
+GRANT EXECUTE ON FUNCTION execute_trade TO anon;
+
+DROP FUNCTION IF EXISTS get_trader_summary(TEXT);
+CREATE OR REPLACE FUNCTION get_trader_summary(p_username TEXT, p_plan_id BIGINT DEFAULT NULL)
+RETURNS TABLE(cash DECIMAL, market_value DECIMAL, total_pnl DECIMAL)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_trader_id BIGINT;
+  v_mv DECIMAL := 0;
+  v_pnl DECIMAL := 0;
+BEGIN
+  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  IF NOT FOUND THEN RETURN; END IF;
+
+  SELECT COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2)), 0),
+         COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) - p.avg_cost), 0)
+  INTO v_mv, v_pnl
+  FROM portfolios p
+  JOIN stock_prices sp ON sp.symbol = p.symbol
+  WHERE p.trader_id = v_trader_id AND p.quantity > 0
+    AND (p_plan_id IS NULL OR p.plan_id = p_plan_id);
+
+  IF p_plan_id IS NULL THEN
+    RETURN QUERY SELECT t.cash_balance, v_mv, v_pnl FROM traders t WHERE t.id = v_trader_id;
+  ELSE
+    RETURN QUERY SELECT 0::DECIMAL, v_mv, v_pnl;
+  END IF;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION get_trader_summary TO anon;
+
+DROP FUNCTION IF EXISTS get_trader_portfolio(TEXT);
+CREATE OR REPLACE FUNCTION get_trader_portfolio(p_username TEXT, p_plan_id BIGINT DEFAULT NULL)
+RETURNS TABLE(symbol TEXT, name TEXT, quantity BIGINT, avg_cost DECIMAL, market_price DECIMAL, plan_id BIGINT)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_trader_id BIGINT;
+  rec RECORD;
+BEGIN
+  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  IF NOT FOUND THEN RETURN; END IF;
+  FOR rec IN
+    SELECT p.symbol, p.name, p.quantity, p.avg_cost, sp.base_price, p.plan_id
+    FROM portfolios p
+    JOIN stock_prices sp ON sp.symbol = p.symbol
+    WHERE p.trader_id = v_trader_id AND p.quantity > 0
+      AND (p_plan_id IS NULL OR p.plan_id = p_plan_id)
+    ORDER BY p.symbol
+  LOOP
+    symbol := rec.symbol;
+    name := rec.name;
+    quantity := rec.quantity;
+    avg_cost := rec.avg_cost;
+    market_price := ROUND(rec.base_price * (1.0 + (random() - 0.5) * 0.1), 2);
+    plan_id := rec.plan_id;
+    RETURN NEXT;
+  END LOOP;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
+
+CREATE OR REPLACE FUNCTION create_plan(p_username TEXT, p_name TEXT, p_strategy TEXT DEFAULT NULL)
+RETURNS TABLE(id BIGINT, plan_name TEXT)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v_tid BIGINT; v_id BIGINT;
+BEGIN
+  SELECT id INTO v_tid FROM traders WHERE username = p_username;
+  IF NOT FOUND THEN RETURN; END IF;
+  INSERT INTO trading_plans (trader_id, plan_name, strategy) VALUES (v_tid, p_name, p_strategy)
+  RETURNING id INTO v_id;
+  RETURN QUERY SELECT v_id, p_name;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION create_plan TO anon;
+
+CREATE OR REPLACE FUNCTION get_plans(p_username TEXT)
+RETURNS TABLE(id BIGINT, plan_name TEXT, strategy TEXT, created_at TIMESTAMPTZ)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE v_tid BIGINT;
+BEGIN
+  SELECT id INTO v_tid FROM traders WHERE username = p_username;
+  IF NOT FOUND THEN RETURN; END IF;
+  RETURN QUERY SELECT tp.id, tp.plan_name, tp.strategy, tp.created_at FROM trading_plans tp WHERE tp.trader_id = v_tid ORDER BY tp.created_at DESC;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION get_plans TO anon;
+
+CREATE OR REPLACE FUNCTION add_plan_stock(p_plan_id BIGINT, p_symbol TEXT, p_name TEXT)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  INSERT INTO plan_stocks (plan_id, symbol, name) VALUES (p_plan_id, p_symbol, p_name) ON CONFLICT (plan_id, symbol) DO NOTHING;
+  RETURN 'ok';
+END;
+$$;
+GRANT EXECUTE ON FUNCTION add_plan_stock TO anon;
+
+CREATE OR REPLACE FUNCTION remove_plan_stock(p_plan_id BIGINT, p_symbol TEXT)
+RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  DELETE FROM plan_stocks WHERE plan_id = p_plan_id AND symbol = p_symbol;
+  RETURN 'ok';
+END;
+$$;
+GRANT EXECUTE ON FUNCTION remove_plan_stock TO anon;
+
+CREATE OR REPLACE FUNCTION get_plan_stocks(p_plan_id BIGINT)
+RETURNS TABLE(symbol TEXT, name TEXT)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+BEGIN
+  RETURN QUERY SELECT ps.symbol, ps.name FROM plan_stocks ps WHERE ps.plan_id = p_plan_id ORDER BY ps.symbol;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION get_plan_stocks TO anon;
