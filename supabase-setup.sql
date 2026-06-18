@@ -396,16 +396,16 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
 
-CREATE OR REPLACE FUNCTION create_plan(p_username TEXT, p_name TEXT, p_strategy TEXT DEFAULT NULL)
+CREATE OR REPLACE FUNCTION create_plan(p_username TEXT, p_plan_name TEXT, p_strategy TEXT DEFAULT NULL)
 RETURNS TABLE(id BIGINT, plan_name TEXT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_tid BIGINT; v_id BIGINT;
+DECLARE v_tid BIGINT; v_new_id BIGINT;
 BEGIN
   SELECT id INTO v_tid FROM traders WHERE username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
-  INSERT INTO trading_plans (trader_id, plan_name, strategy) VALUES (v_tid, p_name, p_strategy)
-  RETURNING id INTO v_id;
-  RETURN QUERY SELECT v_id, p_name;
+  INSERT INTO trading_plans (trader_id, plan_name, strategy) VALUES (v_tid, p_plan_name, p_strategy)
+  RETURNING trading_plans.id INTO v_new_id;
+  RETURN QUERY SELECT v_new_id, p_plan_name;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION create_plan TO anon;

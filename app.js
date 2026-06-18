@@ -537,7 +537,7 @@ function showCreatePlan() {
 
 async function createPlan(name, strategy) {
   console.log('createPlan:', currentUser.username, name, strategy)
-  const res = await fetch(API_BASE + '/rpc/create_plan', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username, p_name: name, p_strategy: strategy }) })
+  const res = await fetch(API_BASE + '/rpc/create_plan', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username, p_plan_name: name, p_strategy: strategy }) })
   const txt = await res.text()
   console.log('createPlan response:', res.status, txt)
   let data = []
