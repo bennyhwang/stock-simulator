@@ -70,6 +70,18 @@ INSERT INTO stock_prices (symbol, name, base_price) VALUES
   ('600276', 'Hengrui Pharma', 42.50),
   ('601012', 'LONGi Green Energy', 18.60),
   ('600887', 'Yili Group', 28.70),
+  ('601398', 'ICBC', 6.80),
+  ('600028', 'Sinopec', 6.20),
+  ('600030', 'CITIC Securities', 20.50),
+  ('600585', 'Conch Cement', 38.60),
+  ('600104', 'SAIC Motor', 24.30),
+  ('600309', 'Wanhua Chemical', 68.50),
+  ('600690', 'Haier Smart Home', 25.80),
+  ('600196', 'Fosun Pharma', 35.60),
+  ('600570', 'Hundsun Tech', 42.80),
+  ('600809', 'Shanxi Fen Wine', 210.00),
+  ('600438', 'Tongwei Solar', 38.50),
+  ('601688', 'Huatai Sec', 16.80),
   -- A股 (深圳)
   ('000858', 'Wuliangye Yibin', 135.00),
   ('000333', 'Midea Group', 65.80),
@@ -78,7 +90,19 @@ INSERT INTO stock_prices (symbol, name, base_price) VALUES
   ('000651', 'Gree Electric', 42.30),
   ('002415', 'Hikvision', 32.50),
   ('300059', 'East Money Info', 15.80),
-  ('002714', 'Muyuan Foods', 38.60)
+  ('002714', 'Muyuan Foods', 38.60),
+  ('000001', 'Ping An Bank', 18.60),
+  ('300760', 'Mindray Medical', 280.00),
+  ('002304', 'Yanghe Brewery', 145.00),
+  ('000568', 'Luzhou Laojiao', 225.00),
+  ('002230', 'iFlytek', 56.80),
+  ('300124', 'Inovance Tech', 68.50),
+  ('000063', 'ZTE Corp', 28.90),
+  ('002460', 'Ganfeng Lithium', 42.60),
+  ('300015', 'Aier Eye Hosp', 32.80),
+  ('002475', 'Luxshare Prec', 38.50),
+  ('300274', 'Sungrow Power', 88.60),
+  ('002352', 'SF Holding', 42.50)
 ON CONFLICT (symbol) DO NOTHING;
 ALTER TABLE stock_prices ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "anon_all_stock_prices" ON stock_prices FOR ALL TO anon USING (true) WITH CHECK (true);

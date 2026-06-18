@@ -254,6 +254,10 @@ async function loadQuickStocks() {
     { symbol: '300750', name: '\u5B81\u5FB7\u65F6\u4EE3' },
     { symbol: '000002', name: '\u4E07\u79D1A' },
     { symbol: '600900', name: '\u957F\u6C5F\u7535\u529B' },
+    { symbol: '601398', name: '\u5DE5\u5546\u94F6\u884C' },
+    { symbol: '000001', name: '\u5E73\u5B89\u94F6\u884C' },
+    { symbol: '002415', name: '\u6D77\u5EB7\u5A01\u89C6' },
+    { symbol: '300760', name: '\u8302\u6E90\u533B\u7597' },
   ]
   const sel = document.getElementById('quickStock')
   sel.innerHTML = stocks.map(s => `<option value="${s.symbol}|${s.name}">${s.symbol} - ${s.name}</option>`).join('')
