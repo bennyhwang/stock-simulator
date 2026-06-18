@@ -113,12 +113,9 @@ async function loadSummary() {
     const fb = await fetch(API_BASE + '/traders?select=cash_balance&username=eq.' + encodeURIComponent(currentUser.username), { headers: HEADERS })
     if (fb.ok) {
       const fd = await fb.json()
-      if (fd && fd.length) { document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance); return }
-      document.getElementById('statCash').textContent = 'FB_EMPTY'
-    } else {
-      document.getElementById('statCash').textContent = 'FB_' + fb.status
+      if (fd && fd.length) document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance)
     }
-  } catch (ex) { document.getElementById('statCash').textContent = 'JS_' + ex.message }
+  } catch (_) {}
 }
 
 async function loadPortfolio() {
