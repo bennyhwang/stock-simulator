@@ -13,32 +13,33 @@ async function handleLogin(e) {
   const password = document.getElementById('regPassword').value
   const err = document.getElementById('loginError')
   err.style.display = 'none'
+  if (!username || !password) { err.textContent = '請輸入用戶名和密碼'; err.style.display = 'block'; return }
 
   try {
-    // Try login first
-    let res = await fetch(API_BASE + '/rpc/login_account', {
+    let res = await fetch(API_BASE + '/rpc/login_trader', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: username, p_password: password })
     })
     if (res.ok) {
       const data = await res.json()
       if (data && data.length) {
-        currentUser = data[0]
+        currentUser = { username: data[0].username, display_name: data[0].display_name || data[0].username }
+        localStorage.setItem('trader_session', JSON.stringify(currentUser))
         onLoginSuccess()
         return
       }
     }
-    // Not found — auto register
     res = await fetch(API_BASE + '/rpc/register_trader', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: username, p_password: password })
     })
     if (res.ok) {
-      currentUser = { username, display_name: username, role: 'trader' }
+      currentUser = { username, display_name: username }
+      localStorage.setItem('trader_session', JSON.stringify(currentUser))
       onLoginSuccess()
     } else {
       const txt = await res.text()
-      err.textContent = '註冊失敗: ' + (txt.includes('duplicate') ? '用戶名已存在' : txt)
+      err.textContent = txt.includes('duplicate') ? '用戶名已存在，請直接登入' : '操作失敗: ' + txt
       err.style.display = 'block'
     }
   } catch (ex) {
@@ -51,16 +52,16 @@ function onLoginSuccess() {
   document.getElementById('loginPage').style.display = 'none'
   document.getElementById('navBar').style.display = 'block'
   document.getElementById('appContent').style.display = 'block'
-  document.getElementById('userDisplay').textContent = '👤 ' + (currentUser.display_name || currentUser.username)
+  document.getElementById('userDisplay').textContent = '\u{1F464} ' + (currentUser.display_name || currentUser.username)
   initApp()
 }
 
 function logout() {
   currentUser = null
+  localStorage.removeItem('trader_session')
   document.getElementById('loginPage').style.display = 'flex'
   document.getElementById('navBar').style.display = 'none'
   document.getElementById('appContent').style.display = 'none'
-  localStorage.removeItem('trader_session')
 }
 
 /* ===== Tab Switching ===== */
@@ -83,26 +84,31 @@ async function initApp() {
 
 async function loadSummary() {
   try {
-    const res = await fetch(API_BASE + '/rpc/get_trader_summary?p_username=' + encodeURIComponent(currentUser.username), { headers: HEADERS })
-    if (!res.ok) return
+    const res = await fetch(API_BASE + '/rpc/get_trader_summary', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ p_username: currentUser.username })
+    })
+    if (!res.ok) { console.warn('loadSummary HTTP', res.status); return }
     const data = await res.json()
-    if (!data || !data.length) return
+    if (!data || !data.length) { console.warn('loadSummary empty'); return }
     const s = data[0]
-    document.getElementById('statCash').textContent = '$' + fmt(s.cash || 0)
-    const mv = s.market_value || 0
+    document.getElementById('statCash').textContent = '$' + fmt(s.cash)
+    const mv = Number(s.market_value || 0)
     document.getElementById('statValue').textContent = '$' + fmt(mv)
-    const total = (s.cash || 0) + mv
-    document.getElementById('statTotal').textContent = '$' + fmt(total)
-    const pnl = s.total_pnl || 0
+    document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
+    const pnl = Number(s.total_pnl || 0)
     const pnlEl = document.getElementById('statPnl')
     pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
     pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
-  } catch (_) {}
+  } catch (ex) { console.warn('loadSummary error', ex) }
 }
 
 async function loadPortfolio() {
   try {
-    const res = await fetch(API_BASE + '/rpc/get_trader_portfolio?p_username=' + encodeURIComponent(currentUser.username), { headers: HEADERS })
+    const res = await fetch(API_BASE + '/rpc/get_trader_portfolio', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ p_username: currentUser.username })
+    })
     if (!res.ok) { portfolioCache = []; return }
     portfolioCache = (await res.json()) || []
   } catch (_) { portfolioCache = [] }
@@ -142,7 +148,10 @@ async function searchStock() {
   if (!q) return
 
   try {
-    const res = await fetch(API_BASE + '/rpc/search_stock?p_query=' + encodeURIComponent(q), { headers: HEADERS })
+    const res = await fetch(API_BASE + '/rpc/search_stock', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ p_query: q })
+    })
     if (!res.ok) throw new Error('查詢失敗')
     const data = await res.json()
     if (!data || !data.length) {
@@ -227,7 +236,10 @@ async function quickTrade(type) {
 
   try {
     // Get current price
-    const res = await fetch(API_BASE + '/rpc/search_stock?p_query=' + encodeURIComponent(symbol), { headers: HEADERS })
+    const res = await fetch(API_BASE + '/rpc/search_stock', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ p_query: symbol })
+    })
     if (!res.ok) { alert('無法獲取股價'); return }
     const data = await res.json()
     if (!data || !data.length) { alert('查詢股價失敗'); return }
@@ -292,10 +304,11 @@ function quickSell(symbol, name, maxQty) {
 /* ===== History ===== */
 async function loadHistory() {
   const search = document.getElementById('historySearch').value.trim()
-  let url = API_BASE + '/rpc/get_trader_history?p_username=' + encodeURIComponent(currentUser.username)
-  if (search) url += '&p_search=' + encodeURIComponent(search)
   try {
-    const res = await fetch(url, { headers: HEADERS })
+    const res = await fetch(API_BASE + '/rpc/get_trader_history', {
+      method: 'POST', headers: HEADERS,
+      body: JSON.stringify({ p_username: currentUser.username, p_search: search || null })
+    })
     const data = (res.ok ? (await res.json() || []) : [])
     const tbody = document.getElementById('historyTable')
     if (!data.length) {
@@ -323,6 +336,8 @@ function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt
 
 /* ===== Session Restore ===== */
 ;(function() {
-  const s = localStorage.getItem('trader_session')
-  if (s) { try { const d = JSON.parse(s); currentUser = d; onLoginSuccess() } catch(_) { localStorage.removeItem('trader_session') } }
+  try {
+    const s = localStorage.getItem('trader_session')
+    if (s) { const d = JSON.parse(s); if (d && d.username) { currentUser = d; onLoginSuccess() } }
+  } catch(_) { localStorage.removeItem('trader_session') }
 })()
