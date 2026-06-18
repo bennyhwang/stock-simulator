@@ -80,6 +80,8 @@ function switchTab(name) {
 /* ===== Dashboard ===== */
 async function initApp() {
   await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks()])
+  // Re-run summary after portfolio loads (in case real prices arrived later)
+  loadSummary()
 }
 
 async function loadSummary() {
@@ -112,10 +114,11 @@ async function loadSummary() {
     if (fb.ok) {
       const fd = await fb.json()
       if (fd && fd.length) { document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance); return }
+      document.getElementById('statCash').textContent = 'FB_EMPTY'
+    } else {
+      document.getElementById('statCash').textContent = 'FB_' + fb.status
     }
-    document.getElementById('statCash').textContent = '--'
-  } catch (_) {}
-}
+  } catch (ex) { document.getElementById('statCash').textContent = 'JS_' + ex.message }
 
 async function loadPortfolio() {
   try {
