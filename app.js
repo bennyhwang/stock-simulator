@@ -84,23 +84,42 @@ async function initApp() {
 
 async function loadSummary() {
   try {
+    // Try RPC; fallback to direct table query if it fails
     const res = await fetch(API_BASE + '/rpc/get_trader_summary', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: currentUser.username })
     })
-    if (!res.ok) { console.warn('loadSummary HTTP', res.status); return }
-    const data = await res.json()
-    if (!data || !data.length) { console.warn('loadSummary empty'); return }
-    const s = data[0]
-    document.getElementById('statCash').textContent = '$' + fmt(s.cash)
-    const mv = Number(s.market_value || 0)
-    document.getElementById('statValue').textContent = '$' + fmt(mv)
-    document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
-    const pnl = Number(s.total_pnl || 0)
-    const pnlEl = document.getElementById('statPnl')
-    pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
-    pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
-  } catch (ex) { console.warn('loadSummary error', ex) }
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.length) {
+        const s = data[0]
+        document.getElementById('statCash').textContent = '$' + fmt(s.cash)
+        const mv = Number(s.market_value || 0)
+        document.getElementById('statValue').textContent = '$' + fmt(mv)
+        document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
+        const pnl = Number(s.total_pnl || 0)
+        const pnlEl = document.getElementById('statPnl')
+        pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
+        pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
+        return
+      }
+    }
+    // Fallback: query traders table directly
+    const fallback = await fetch(API_BASE + '/traders?select=cash_balance&username=eq.' + encodeURIComponent(currentUser.username), { headers: HEADERS })
+    if (fallback.ok) {
+      const fd = await fallback.json()
+      if (fd && fd.length) {
+        document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance)
+      } else {
+        document.getElementById('statCash').textContent = 'RPC_ERROR'
+      }
+    } else {
+      document.getElementById('statCash').textContent = 'HTTP_' + fallback.status
+    }
+  } catch (ex) {
+    document.getElementById('statCash').textContent = 'ERR'
+    console.warn('loadSummary error', ex)
+  }
 }
 
 async function loadPortfolio() {
