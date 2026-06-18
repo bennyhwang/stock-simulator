@@ -406,7 +406,7 @@ BEGIN
   IF NOT FOUND THEN RETURN; END IF;
   INSERT INTO trading_plans (trader_id, plan_name, strategy) VALUES (v_tid, p_plan_name, p_strategy)
   RETURNING trading_plans.id INTO v_new_id;
-  RETURN QUERY SELECT v_new_id, p_plan_name;
+  RETURN QUERY SELECT v_new_id AS out_id, p_plan_name AS out_name;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION create_plan TO anon;
