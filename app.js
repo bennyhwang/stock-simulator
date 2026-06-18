@@ -27,6 +27,7 @@ async function handleLogin(e) {
       const data = await res.json()
       if (data && data.length) {
         currentUser = { username: data[0].username, display_name: data[0].display_name || data[0].username }
+        console.log('login success:', currentUser)
         localStorage.setItem('trader_session', JSON.stringify(currentUser))
         onLoginSuccess()
         return
@@ -496,7 +497,9 @@ async function getRealPrice(symbol) {
 async function loadPlans() {
   try {
     const res = await fetch(API_BASE + '/rpc/get_plans', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username }) })
-    plans = (res.ok ? (await res.json() || []) : [])
+    const txt = await res.text()
+    console.log('loadPlans:', res.status, txt)
+    plans = (res.ok ? (JSON.parse(txt) || []) : [])
     renderPlanSelector()
   } catch(_) { plans = [] }
 }
@@ -533,8 +536,10 @@ function showCreatePlan() {
 }
 
 async function createPlan(name, strategy) {
+  console.log('createPlan:', currentUser.username, name, strategy)
   const res = await fetch(API_BASE + '/rpc/create_plan', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username, p_name: name, p_strategy: strategy }) })
   const txt = await res.text()
+  console.log('createPlan response:', res.status, txt)
   let data = []
   try { data = JSON.parse(txt) } catch(_) {}
   if (res.ok && data && data.length) { await loadPlans(); renderPlans() }
