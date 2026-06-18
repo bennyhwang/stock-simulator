@@ -534,8 +534,11 @@ function showCreatePlan() {
 
 async function createPlan(name, strategy) {
   const res = await fetch(API_BASE + '/rpc/create_plan', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username, p_name: name, p_strategy: strategy }) })
-  if (res.ok) { await loadPlans(); renderPlans() }
-  else alert('創建失敗')
+  const txt = await res.text()
+  let data = []
+  try { data = JSON.parse(txt) } catch(_) {}
+  if (res.ok && data && data.length) { await loadPlans(); renderPlans() }
+  else alert('創建失敗: ' + (txt || '未知錯誤'))
 }
 
 async function showPlanDetail(planId) {
