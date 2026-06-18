@@ -84,42 +84,28 @@ async function initApp() {
 
 async function loadSummary() {
   try {
-    // Try RPC; fallback to direct table query if it fails
     const res = await fetch(API_BASE + '/rpc/get_trader_summary', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: currentUser.username })
     })
-    if (res.ok) {
-      const data = await res.json()
-      if (data && data.length) {
-        const s = data[0]
-        document.getElementById('statCash').textContent = '$' + fmt(s.cash)
-        const mv = Number(s.market_value || 0)
-        document.getElementById('statValue').textContent = '$' + fmt(mv)
-        document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
-        const pnl = Number(s.total_pnl || 0)
-        const pnlEl = document.getElementById('statPnl')
-        pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
-        pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
-        return
-      }
+    if (!res.ok) return
+    const data = await res.json()
+    if (!data || !data.length) return
+    const s = data[0]
+    let mv = Number(s.market_value || 0)
+    let pnl = Number(s.total_pnl || 0)
+    // Recalculate with real prices if portfolio is loaded
+    if (portfolioCache.length) {
+      const realMv = portfolioCache.reduce(function(sum, p) { return sum + (p.market_price || 0) * p.quantity }, 0)
+      if (realMv > 0) { mv = realMv; pnl = realMv - portfolioCache.reduce(function(sum, p) { return sum + p.avg_cost * p.quantity }, 0) }
     }
-    // Fallback: query traders table directly
-    const fallback = await fetch(API_BASE + '/traders?select=cash_balance&username=eq.' + encodeURIComponent(currentUser.username), { headers: HEADERS })
-    if (fallback.ok) {
-      const fd = await fallback.json()
-      if (fd && fd.length) {
-        document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance)
-      } else {
-        document.getElementById('statCash').textContent = 'RPC_ERROR'
-      }
-    } else {
-      document.getElementById('statCash').textContent = 'HTTP_' + fallback.status
-    }
-  } catch (ex) {
-    document.getElementById('statCash').textContent = 'ERR'
-    console.warn('loadSummary error', ex)
-  }
+    document.getElementById('statCash').textContent = '$' + fmt(s.cash)
+    document.getElementById('statValue').textContent = '$' + fmt(mv)
+    document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
+    const pnlEl = document.getElementById('statPnl')
+    pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
+    pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
+  } catch (_) {}
 }
 
 async function loadPortfolio() {
@@ -130,7 +116,15 @@ async function loadPortfolio() {
     })
     if (!res.ok) { portfolioCache = []; return }
     portfolioCache = (await res.json()) || []
-  } catch (_) { portfolioCache = [] }
+    // Try to enrich with real prices
+    if (portfolioCache.length) {
+      const syms = portfolioCache.map(function(p) { return p.symbol })
+      const real = await fetchRealPrices(syms)
+      portfolioCache.forEach(function(p) {
+        if (real[p.symbol]) p.market_price = real[p.symbol].price
+      })
+    }
+  } catch (_) { portfolioCache = portfolioCache || [] }
   renderPortfolioSummary()
 }
 
@@ -167,6 +161,12 @@ async function searchStock() {
   if (!q) return
 
   try {
+    const realData = await getRealPrice(q.toUpperCase())
+    if (realData) {
+      currentStockData = { symbol: q.toUpperCase(), name: realData.name, price: realData.price }
+      showStockData(currentStockData)
+      return
+    }
     const res = await fetch(API_BASE + '/rpc/search_stock', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_query: q })
@@ -180,18 +180,26 @@ async function searchStock() {
       return
     }
     currentStockData = data[0]
-    document.getElementById('stockName').textContent = currentStockData.name || ''
-    document.getElementById('stockSymbol').textContent = currentStockData.symbol
-    const price = currentStockData.price || 0
-    const priceEl = document.getElementById('stockPrice')
-    priceEl.textContent = '$' + fmt(price)
-    priceEl.style.color = price > 0 ? '#3fb950' : '#f85149'
-    document.getElementById('tradeQty').value = 100
-    result.style.display = 'block'
+    try {
+      const realPrice = await getRealPrice(currentStockData.symbol)
+      if (realPrice) { currentStockData.price = realPrice.price; currentStockData.name = realPrice.name || currentStockData.name }
+    } catch(_) {}
+    showStockData(currentStockData)
   } catch (ex) {
     err.textContent = '錯誤: ' + ex.message
     err.style.display = 'block'
   }
+}
+
+function showStockData(s) {
+  document.getElementById('stockName').textContent = s.name || ''
+  document.getElementById('stockSymbol').textContent = s.symbol
+  const price = s.price || 0
+  const priceEl = document.getElementById('stockPrice')
+  priceEl.textContent = '$' + fmt(price)
+  priceEl.style.color = price > 0 ? '#3fb950' : '#f85149'
+  document.getElementById('tradeQty').value = 100
+  document.getElementById('stockResult').style.display = 'block'
 }
 
 async function executeTrade() {
@@ -269,15 +277,20 @@ async function quickTrade(type) {
   if (!qty || qty < 1) { alert('請輸入有效數量'); return }
 
   try {
-    // Get current price
-    const res = await fetch(API_BASE + '/rpc/search_stock', {
-      method: 'POST', headers: HEADERS,
-      body: JSON.stringify({ p_query: symbol })
-    })
-    if (!res.ok) { alert('無法獲取股價'); return }
-    const data = await res.json()
-    if (!data || !data.length) { alert('查詢股價失敗'); return }
-    const stock = data[0]
+    let price = 0
+    const realData = await getRealPrice(symbol)
+    if (realData) {
+      price = realData.price
+    } else {
+      const res = await fetch(API_BASE + '/rpc/search_stock', {
+        method: 'POST', headers: HEADERS,
+        body: JSON.stringify({ p_query: symbol })
+      })
+      if (!res.ok) { alert('無法獲取股價'); return }
+      const data = await res.json()
+      if (!data || !data.length) { alert('查詢股價失敗'); return }
+      price = data[0].price
+    }
 
     const tradeRes = await fetch(API_BASE + '/rpc/execute_trade', {
       method: 'POST', headers: HEADERS,
@@ -285,7 +298,7 @@ async function quickTrade(type) {
         p_username: currentUser.username,
         p_symbol: symbol,
         p_name: name,
-        p_price: stock.price,
+        p_price: price,
         p_quantity: qty,
         p_type: type
       })
@@ -367,6 +380,47 @@ async function loadHistory() {
 /* ===== Helpers ===== */
 function fmt(n) { return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+/* ===== Real Stock Price (Tencent Finance API) ===== */
+function symbolToTencentCode(sym) {
+  if (sym.endsWith('.HK')) {
+    const num = sym.replace('.HK', '')
+    return 'hk' + num.padStart(5, '0')
+  }
+  if (/^[A-Z]+$/.test(sym)) return 'us' + sym
+  if (/^6\d{5}$/.test(sym)) return 'sh' + sym
+  if (/^[03]\d{5}$/.test(sym)) return 'sz' + sym
+  return sym
+}
+
+async function fetchRealPrices(symbols) {
+  if (!symbols || !symbols.length) return {}
+  const codes = symbols.map(symbolToTencentCode).filter(Boolean)
+  if (!codes.length) return {}
+  try {
+    const res = await fetch('https://web.sqt.gtimg.cn/q=' + codes.join(','), { signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return {}
+    const text = await res.text()
+    const result = {}
+    text.split('\n').forEach(function(line) {
+      line = line.trim()
+      if (!line) return
+      const m = line.match(/^v_[^=]+="(.+)";?$/)
+      if (!m) return
+      const parts = m[1].split('~')
+      if (parts.length < 5) return
+      const price = parseFloat(parts[3])
+      if (isNaN(price)) return
+      result[parts[2]] = { price: price, name: parts[1] || '', open: parseFloat(parts[5]) || 0, high: parseFloat(parts[9]) || 0, low: parseFloat(parts[10]) || 0, volume: parts[6] || '0' }
+    })
+    return result
+  } catch (_) { return {} }
+}
+
+async function getRealPrice(symbol) {
+  const map = await fetchRealPrices([symbol])
+  return map[symbol] || null
+}
 
 /* ===== Session Restore ===== */
 ;(function() {
