@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>模擬炒股 - 虛擬股票交易</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0d1117; color: #c9d1d9; min-height: 100vh; }
+    .flex { display: flex; align-items: center; }
+    .between { justify-content: space-between; }
+    .center { justify-content: center; }
+    .col { flex-direction: column; }
+
+    /* Login */
+    #loginPage { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0d1117 0%, #161b22 100%); }
+    .login-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 2.5rem; width: 380px; text-align: center; }
+    .login-box h1 { font-size: 1.8rem; margin-bottom: 0.3rem; color: #f0f6fc; }
+    .login-box p { color: #8b949e; margin-bottom: 1.5rem; }
+    .login-box input { width: 100%; padding: 0.7rem 1rem; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 0.95rem; margin-bottom: 0.8rem; outline: none; }
+    .login-box input:focus { border-color: #58a6ff; }
+    .login-box button { width: 100%; padding: 0.75rem; background: #238636; color: #fff; border: none; border-radius: 8px; font-size: 1rem; cursor: pointer; }
+    .login-box button:hover { background: #2ea043; }
+    .login-box .btn-secondary { background: #21262d; margin-top: 0.5rem; }
+    .login-box .btn-secondary:hover { background: #30363d; }
+    .login-box .error { color: #f85149; font-size: 0.85rem; margin-top: 0.5rem; display: none; }
+
+    /* Nav */
+    nav { background: #161b22; border-bottom: 1px solid #30363d; padding: 0.8rem 2rem; display: none; position: sticky; top: 0; z-index: 50; }
+    nav .logo { font-size: 1.2rem; font-weight: 700; color: #f0f6fc; }
+    nav .nav-links { display: flex; gap: 0.3rem; }
+    nav .nav-links button { padding: 0.5rem 1rem; background: none; border: none; color: #8b949e; cursor: pointer; font-size: 0.9rem; border-radius: 8px; }
+    nav .nav-links button:hover { color: #c9d1d9; background: #21262d; }
+    nav .nav-links button.active { color: #f0f6fc; background: #1f6feb; }
+    nav .user-info { color: #8b949e; font-size: 0.85rem; }
+    nav .user-info button { margin-left: 0.5rem; padding: 0.3rem 0.8rem; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 0.8rem; }
+
+    /* Main */
+    .main { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; display: none; }
+
+    /* Cards */
+    .card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .card h2 { font-size: 1.2rem; margin-bottom: 1rem; color: #f0f6fc; }
+
+    /* Account summary */
+    .account-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 1.2rem; text-align: center; }
+    .stat-card .label { font-size: 0.8rem; color: #8b949e; }
+    .stat-card .value { font-size: 1.5rem; font-weight: 700; margin-top: 0.3rem; }
+    .stat-card .value.green { color: #3fb950; }
+    .stat-card .value.red { color: #f85149; }
+    .stat-card .value.white { color: #f0f6fc; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 0.7rem 0.5rem; font-size: 0.8rem; color: #8b949e; border-bottom: 1px solid #30363d; }
+    td { padding: 0.7rem 0.5rem; font-size: 0.9rem; border-bottom: 1px solid #21262d; }
+    .green { color: #3fb950; }
+    .red { color: #f85149; }
+
+    /* Trade form */
+    .trade-form { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 0.8rem; align-items: end; }
+    .trade-form .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .trade-form label { font-size: 0.8rem; color: #8b949e; }
+    .trade-form input, .trade-form select { padding: 0.6rem 0.8rem; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 0.9rem; outline: none; width: 100%; }
+    .trade-form input:focus { border-color: #58a6ff; }
+    .trade-form .btn-buy { padding: 0.6rem 1.5rem; background: #238636; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+    .trade-form .btn-sell { padding: 0.6rem 1.5rem; background: #da3633; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9rem; }
+
+    /* Search */
+    .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .search-bar input { flex: 1; padding: 0.6rem 1rem; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #c9d1d9; font-size: 0.9rem; outline: none; }
+    .search-bar input:focus { border-color: #58a6ff; }
+    .search-bar button { padding: 0.6rem 1.2rem; background: #21262d; border: 1px solid #30363d; color: #c9d1d9; border-radius: 8px; cursor: pointer; }
+
+    /* Section display */
+    .section { display: none; }
+    .section.active { display: block; }
+
+    @media (max-width: 768px) {
+      .trade-form { grid-template-columns: 1fr; }
+      .account-summary { grid-template-columns: 1fr 1fr; }
+      nav { padding: 0.6rem 1rem; flex-wrap: wrap; gap: 0.5rem; }
+      nav .nav-links { flex-wrap: wrap; }
+      .main { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+<div id="loginPage">
+  <div class="login-box">
+    <h1>📈 模擬炒股</h1>
+    <p>虛擬資金 · 練習交易 · 零風險</p>
+    <form id="loginForm" onsubmit="handleLogin(event)">
+      <input type="text" id="regUsername" placeholder="用戶名" autocomplete="username" required>
+      <input type="password" id="regPassword" placeholder="密碼" autocomplete="current-password" required>
+      <button type="submit">登入</button>
+      <button type="button" class="btn-secondary" onclick="showRegister()">註冊新帳號</button>
+    </form>
+    <div class="error" id="loginError"></div>
+  </div>
+</div>
+
+<nav id="navBar">
+  <div class="flex between" style="width:100%;">
+    <div class="logo">📈 模擬炒股</div>
+    <div class="nav-links">
+      <button class="active" onclick="switchTab('dashboard')">儀表板</button>
+      <button onclick="switchTab('trade')">交易</button>
+      <button onclick="switchTab('portfolio')">持倉</button>
+      <button onclick="switchTab('history')">交易紀錄</button>
+    </div>
+    <div class="user-info">
+      <span id="userDisplay"></span>
+      <button onclick="logout()">登出</button>
+    </div>
+  </div>
+</nav>
+
+<div class="main" id="appContent">
+
+  <!-- Dashboard -->
+  <div id="secDashboard" class="section active">
+    <div class="account-summary">
+      <div class="stat-card"><div class="label">可用資金</div><div class="value white" id="statCash">--</div></div>
+      <div class="stat-card"><div class="label">持倉市值</div><div class="value white" id="statValue">--</div></div>
+      <div class="stat-card"><div class="label">總資產</div><div class="value white" id="statTotal">--</div></div>
+      <div class="stat-card"><div class="label">總盈虧</div><div class="value" id="statPnl">--</div></div>
+    </div>
+    <div class="card">
+      <h2>持倉概覽</h2>
+      <div class="table-wrap">
+        <table><thead><tr><th>股票</th><th>名稱</th><th>持股</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th></tr></thead><tbody id="portfolioSummary"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Trade -->
+  <div id="secTrade" class="section">
+    <div class="card">
+      <h2>股票搜尋</h2>
+      <div class="search-bar">
+        <input type="text" id="stockSearch" placeholder="輸入股票代碼搜尋，例如 0005.HK, AAPL" onkeydown="if(event.key==='Enter')searchStock()">
+        <button onclick="searchStock()">搜尋</button>
+      </div>
+      <div id="stockResult" style="display:none;">
+        <div class="flex between" style="margin-bottom:1rem;">
+          <div><strong id="stockName" style="font-size:1.1rem;"></strong> <span id="stockSymbol" style="color:#8b949e;"></span></div>
+          <div><span id="stockPrice" style="font-size:1.3rem;font-weight:700;"></span></div>
+        </div>
+        <div class="trade-form">
+          <div></div>
+          <div class="form-group"><label>數量 (股)</label><input type="number" id="tradeQty" min="1" value="100"></div>
+          <div class="form-group"><label>交易類型</label><select id="tradeType"><option value="buy">買入</option><option value="sell">賣出</option></select></div>
+          <div style="display:flex;gap:0.5rem;">
+            <button class="btn-buy" onclick="executeTrade()">下單</button>
+          </div>
+        </div>
+        <div class="error" id="tradeError" style="margin-top:0.5rem;"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>快速下單（港股）</h2>
+      <div class="search-bar">
+        <select id="quickStock" style="flex:1;padding:0.6rem 1rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;"></select>
+        <input type="number" id="quickQty" min="1" value="100" style="width:100px;padding:0.6rem 1rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;">
+        <button onclick="quickTrade('buy')" style="padding:0.6rem 1.2rem;background:#238636;color:#fff;border:none;border-radius:8px;cursor:pointer;">買入</button>
+        <button onclick="quickTrade('sell')" style="padding:0.6rem 1.2rem;background:#da3633;color:#fff;border:none;border-radius:8px;cursor:pointer;">賣出</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Portfolio -->
+  <div id="secPortfolio" class="section">
+    <div class="card">
+      <h2>持倉明細</h2>
+      <div class="table-wrap">
+        <table><thead><tr><th>股票</th><th>名稱</th><th>持股數量</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th><th>操作</th></tr></thead><tbody id="portfolioDetail"></tbody></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- History -->
+  <div id="secHistory" class="section">
+    <div class="card">
+      <h2>交易紀錄</h2>
+      <div class="search-bar">
+        <input type="text" id="historySearch" placeholder="搜尋股票代碼" onkeydown="if(event.key==='Enter')loadHistory()">
+        <button onclick="loadHistory()">搜尋</button>
+      </div>
+      <div class="table-wrap">
+        <table><thead><tr><th>時間</th><th>股票</th><th>名稱</th><th>類型</th><th>數量</th><th>成交價</th><th>金額</th></tr></thead><tbody id="historyTable"></tbody></table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
