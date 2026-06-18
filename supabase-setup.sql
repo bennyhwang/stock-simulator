@@ -396,6 +396,7 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
 
+DROP FUNCTION IF EXISTS create_plan(TEXT,TEXT,TEXT);
 CREATE OR REPLACE FUNCTION create_plan(p_username TEXT, p_plan_name TEXT, p_strategy TEXT DEFAULT NULL)
 RETURNS TABLE(id BIGINT, plan_name TEXT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
