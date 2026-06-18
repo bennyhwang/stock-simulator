@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS stock_prices (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 INSERT INTO stock_prices (symbol, name, base_price) VALUES
+  -- 港股
   ('0005.HK', 'HSBC Holdings', 72.50),
   ('0700.HK', 'Tencent Holdings', 380.00),
   ('9988.HK', 'Alibaba Group', 95.20),
@@ -53,12 +54,31 @@ INSERT INTO stock_prices (symbol, name, base_price) VALUES
   ('2388.HK', 'BOCHK', 28.90),
   ('0001.HK', 'CK Hutchison', 52.60),
   ('0011.HK', 'Hang Seng Bank', 112.30),
+  -- 美股
   ('AAPL', 'Apple Inc.', 195.00),
   ('GOOGL', 'Alphabet Inc.', 175.50),
   ('MSFT', 'Microsoft Corp.', 425.00),
   ('TSLA', 'Tesla Inc.', 245.80),
   ('AMZN', 'Amazon.com', 185.30),
-  ('NVDA', 'NVIDIA Corp.', 890.00)
+  ('NVDA', 'NVIDIA Corp.', 890.00),
+  -- A股 (上海)
+  ('600519', 'Kweichow Moutai', 1680.00),
+  ('600036', 'China Merchants Bank', 36.50),
+  ('601318', 'Ping An Insurance', 42.80),
+  ('600900', 'Yangtze Power', 26.30),
+  ('601166', 'Industrial Bank', 18.90),
+  ('600276', 'Hengrui Pharma', 42.50),
+  ('601012', 'LONGi Green Energy', 18.60),
+  ('600887', 'Yili Group', 28.70),
+  -- A股 (深圳)
+  ('000858', 'Wuliangye Yibin', 135.00),
+  ('000333', 'Midea Group', 65.80),
+  ('000002', 'Vanke A', 9.50),
+  ('300750', 'CATL', 210.00),
+  ('000651', 'Gree Electric', 42.30),
+  ('002415', 'Hikvision', 32.50),
+  ('300059', 'East Money Info', 15.80),
+  ('002714', 'Muyuan Foods', 38.60)
 ON CONFLICT (symbol) DO NOTHING;
 ALTER TABLE stock_prices ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "anon_all_stock_prices" ON stock_prices FOR ALL TO anon USING (true) WITH CHECK (true);

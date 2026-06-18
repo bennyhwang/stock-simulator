@@ -235,14 +235,25 @@ async function executeTrade() {
 async function loadQuickStocks() {
   // Populate with Hong Kong popular stocks
   const stocks = [
-    { symbol: '0005.HK', name: '滙豐控股' }, { symbol: '0700.HK', name: '騰訊控股' },
-    { symbol: '9988.HK', name: '阿里巴巴' }, { symbol: '0941.HK', name: '中國移動' },
-    { symbol: '1299.HK', name: '友邦保險' }, { symbol: '3690.HK', name: '美團' },
-    { symbol: '1810.HK', name: '小米集團' }, { symbol: '2388.HK', name: '中銀香港' },
-    { symbol: '0001.HK', name: '長和' }, { symbol: '0011.HK', name: '恒生銀行' },
+    // \u6E2F\u80A1
+    { symbol: '0005.HK', name: '\u6EDE\u8C50\u63A7\u80A1' }, { symbol: '0700.HK', name: '\u9A30\u8A0A\u63A7\u80A1' },
+    { symbol: '9988.HK', name: '\u963F\u91CC\u5DF4\u5DF4' }, { symbol: '0941.HK', name: '\u4E2D\u570B\u79FB\u52D5' },
+    { symbol: '1299.HK', name: '\u53CB\u90A6\u4FDD\u96AA' }, { symbol: '3690.HK', name: '\u7F8E\u5718' },
+    { symbol: '1810.HK', name: '\u5C0F\u7C73\u96C6\u5718' }, { symbol: '2388.HK', name: '\u4E2D\u9280\u9999\u6E2F' },
+    { symbol: '0001.HK', name: '\u9577\u548C' }, { symbol: '0011.HK', name: '\u6052\u751F\u9280\u884C' },
+    // \u7F8E\u80A1
     { symbol: 'AAPL', name: 'Apple' }, { symbol: 'GOOGL', name: 'Alphabet' },
     { symbol: 'MSFT', name: 'Microsoft' }, { symbol: 'TSLA', name: 'Tesla' },
     { symbol: 'AMZN', name: 'Amazon' }, { symbol: 'NVDA', name: 'NVIDIA' },
+    // A\u80A1
+    { symbol: '600519', name: '\u8D35\u5DDE\u8305\u53F0' },
+    { symbol: '600036', name: '\u62DB\u5546\u94F6\u884C' },
+    { symbol: '601318', name: '\u4E2D\u56FD\u5E73\u5B89' },
+    { symbol: '000858', name: '\u4E94\u7CAE\u6DB2' },
+    { symbol: '000333', name: '\u7F8E\u7684\u96C6\u56E2' },
+    { symbol: '300750', name: '\u5B81\u5FB7\u65F6\u4EE3' },
+    { symbol: '000002', name: '\u4E07\u79D1A' },
+    { symbol: '600900', name: '\u957F\u6C5F\u7535\u529B' },
   ]
   const sel = document.getElementById('quickStock')
   sel.innerHTML = stocks.map(s => `<option value="${s.symbol}|${s.name}">${s.symbol} - ${s.name}</option>`).join('')
