@@ -119,6 +119,7 @@ async function loadSummary() {
       document.getElementById('statCash').textContent = 'FB_' + fb.status
     }
   } catch (ex) { document.getElementById('statCash').textContent = 'JS_' + ex.message }
+}
 
 async function loadPortfolio() {
   try {
