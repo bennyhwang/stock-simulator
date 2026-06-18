@@ -400,7 +400,8 @@ async function fetchRealPrices(symbols) {
   try {
     const res = await fetch('https://web.sqt.gtimg.cn/q=' + codes.join(','), { signal: AbortSignal.timeout(5000) })
     if (!res.ok) return {}
-    const text = await res.text()
+    const buffer = await res.arrayBuffer()
+    const text = new TextDecoder('gbk').decode(buffer)
     const result = {}
     text.split('\n').forEach(function(line) {
       line = line.trim()
