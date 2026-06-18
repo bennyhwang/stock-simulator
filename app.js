@@ -88,23 +88,32 @@ async function loadSummary() {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: currentUser.username })
     })
-    if (!res.ok) return
-    const data = await res.json()
-    if (!data || !data.length) return
-    const s = data[0]
-    let mv = Number(s.market_value || 0)
-    let pnl = Number(s.total_pnl || 0)
-    // Recalculate with real prices if portfolio is loaded
-    if (portfolioCache.length) {
-      const realMv = portfolioCache.reduce(function(sum, p) { return sum + (p.market_price || 0) * p.quantity }, 0)
-      if (realMv > 0) { mv = realMv; pnl = realMv - portfolioCache.reduce(function(sum, p) { return sum + p.avg_cost * p.quantity }, 0) }
+    if (res.ok) {
+      const data = await res.json()
+      if (data && data.length) {
+        const s = data[0]
+        let mv = Number(s.market_value || 0)
+        let pnl = Number(s.total_pnl || 0)
+        if (portfolioCache.length) {
+          const realMv = portfolioCache.reduce(function(sm, p) { return sm + (p.market_price || 0) * p.quantity }, 0)
+          if (realMv > 0) { mv = realMv; pnl = realMv - portfolioCache.reduce(function(sm, p) { return sm + p.avg_cost * p.quantity }, 0) }
+        }
+        document.getElementById('statCash').textContent = '$' + fmt(s.cash)
+        document.getElementById('statValue').textContent = '$' + fmt(mv)
+        document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
+        const pnlEl = document.getElementById('statPnl')
+        pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
+        pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
+        return
+      }
     }
-    document.getElementById('statCash').textContent = '$' + fmt(s.cash)
-    document.getElementById('statValue').textContent = '$' + fmt(mv)
-    document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
-    const pnlEl = document.getElementById('statPnl')
-    pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
-    pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
+    // Fallback
+    const fb = await fetch(API_BASE + '/traders?select=cash_balance&username=eq.' + encodeURIComponent(currentUser.username), { headers: HEADERS })
+    if (fb.ok) {
+      const fd = await fb.json()
+      if (fd && fd.length) { document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance); return }
+    }
+    document.getElementById('statCash').textContent = '--'
   } catch (_) {}
 }
 
