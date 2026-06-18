@@ -159,18 +159,20 @@ RETURNS TABLE(cash DECIMAL, market_value DECIMAL, total_pnl DECIMAL)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_trader_id BIGINT;
+  v_mv DECIMAL := 0;
+  v_pnl DECIMAL := 0;
 BEGIN
   SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
-  RETURN QUERY
-  SELECT
-    t.cash_balance AS cash,
-    COALESCE(SUM(p.quantity * (SELECT ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) FROM stock_prices sp WHERE sp.symbol = p.symbol)), 0) AS market_value,
-    COALESCE(SUM(p.quantity * (SELECT ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) FROM stock_prices sp WHERE sp.symbol = p.symbol) - p.avg_cost), 0) AS total_pnl
-  FROM traders t
-  LEFT JOIN portfolios p ON p.trader_id = t.id
-  WHERE t.id = v_trader_id
-  GROUP BY t.cash_balance;
+
+  SELECT COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2)), 0),
+         COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) - p.avg_cost), 0)
+  INTO v_mv, v_pnl
+  FROM portfolios p
+  JOIN stock_prices sp ON sp.symbol = p.symbol
+  WHERE p.trader_id = v_trader_id;
+
+  RETURN QUERY SELECT t.cash_balance, v_mv, v_pnl FROM traders t WHERE t.id = v_trader_id;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_summary TO anon;
@@ -180,16 +182,24 @@ RETURNS TABLE(symbol TEXT, name TEXT, quantity BIGINT, avg_cost DECIMAL, market_
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_trader_id BIGINT;
+  rec RECORD;
 BEGIN
   SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
-  RETURN QUERY
-  SELECT p.symbol, p.name, p.quantity, p.avg_cost,
-    ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) AS market_price
-  FROM portfolios p
-  JOIN stock_prices sp ON sp.symbol = p.symbol
-  WHERE p.trader_id = v_trader_id AND p.quantity > 0
-  ORDER BY p.symbol;
+  FOR rec IN
+    SELECT p.symbol, p.name, p.quantity, p.avg_cost, sp.base_price
+    FROM portfolios p
+    JOIN stock_prices sp ON sp.symbol = p.symbol
+    WHERE p.trader_id = v_trader_id AND p.quantity > 0
+    ORDER BY p.symbol
+  LOOP
+    symbol := rec.symbol;
+    name := rec.name;
+    quantity := rec.quantity;
+    avg_cost := rec.avg_cost;
+    market_price := ROUND(rec.base_price * (1.0 + (random() - 0.5) * 0.1), 2);
+    RETURN NEXT;
+  END LOOP;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
