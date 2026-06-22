@@ -157,7 +157,7 @@ BEGIN
     v_random := 1.0 + (random() - 0.5) * 0.1;
     symbol := v_symbol;
     name := v_name;
-    price := ROUND(v_base * v_random, 2);
+    price := ROUND((v_base * v_random)::numeric, 2);
     RETURN NEXT;
   END LOOP;
 END;
@@ -247,8 +247,8 @@ BEGIN
   SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
 
-  SELECT COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2)), 0),
-         COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2) - p.avg_cost), 0)
+  SELECT COALESCE(SUM(p.quantity * ROUND((sp.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2)), 0),
+         COALESCE(SUM(p.quantity * ROUND((sp.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2) - p.avg_cost), 0)
   INTO v_mv, v_pnl
   FROM portfolios p
   JOIN stock_prices sp ON sp.symbol = p.symbol
@@ -287,7 +287,7 @@ BEGIN
     name := rec.name;
     quantity := rec.quantity;
     avg_cost := rec.avg_cost;
-    market_price := ROUND(rec.base_price * (1.0 + (random() - 0.5) * 0.1), 2);
+    market_price := ROUND((rec.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2);
     plan_id := rec.plan_id;
     RETURN NEXT;
   END LOOP;
