@@ -113,6 +113,7 @@ ALTER TABLE stock_prices ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "anon_all_stock_prices" ON stock_prices;
 CREATE POLICY "anon_all_stock_prices" ON stock_prices FOR ALL TO anon USING (true) WITH CHECK (true);
 
+DROP FUNCTION IF EXISTS register_trader(TEXT,TEXT);
 CREATE OR REPLACE FUNCTION register_trader(p_username TEXT, p_password TEXT)
 RETURNS TABLE(username TEXT, display_name TEXT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -124,6 +125,7 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION register_trader TO anon;
 
+DROP FUNCTION IF EXISTS login_trader(TEXT,TEXT);
 CREATE OR REPLACE FUNCTION login_trader(p_username TEXT, p_password TEXT)
 RETURNS TABLE(username TEXT, display_name TEXT, cash_balance DECIMAL)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -136,6 +138,7 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION login_trader TO anon;
 
+DROP FUNCTION IF EXISTS search_stock(TEXT);
 CREATE OR REPLACE FUNCTION search_stock(p_query TEXT)
 RETURNS TABLE(symbol TEXT, name TEXT, price DECIMAL)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -292,6 +295,7 @@ END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_portfolio TO anon;
 
+DROP FUNCTION IF EXISTS get_trader_history(TEXT,TEXT);
 CREATE OR REPLACE FUNCTION get_trader_history(p_username TEXT, p_search TEXT DEFAULT NULL)
 RETURNS TABLE(symbol TEXT, name TEXT, type TEXT, quantity BIGINT, price DECIMAL, created_at TIMESTAMPTZ, plan_id BIGINT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
