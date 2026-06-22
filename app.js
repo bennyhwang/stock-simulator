@@ -27,7 +27,6 @@ async function handleLogin(e) {
       const data = await res.json()
       if (data && data.length) {
         currentUser = { username: data[0].username, display_name: data[0].display_name || data[0].username }
-        console.log('login success:', currentUser)
         localStorage.setItem('trader_session', JSON.stringify(currentUser))
         onLoginSuccess()
         return
@@ -95,7 +94,6 @@ async function loadSummary() {
       body: JSON.stringify({ p_username: currentUser.username })
     })
     const txt = await res.text()
-    console.log('loadSummary:', res.status, txt)
     if (res.ok) {
       const data = JSON.parse(txt || '[]')
       if (data && data.length) {
@@ -155,10 +153,8 @@ async function loadPortfolio() {
       body: JSON.stringify({ p_username: currentUser.username })
     })
     const txt = await res.text()
-    console.log('loadPortfolio:', res.status, txt)
     if (!res.ok) { portfolioCache = []; return }
     portfolioCache = (JSON.parse(txt || '[]')) || []
-    console.log('portfolioCache:', portfolioCache)
     // Try to enrich with real prices
     if (portfolioCache.length) {
       const syms = portfolioCache.map(function(p) { return p.symbol })
@@ -264,13 +260,11 @@ async function executeTrade() {
       p_type: type,
       p_plan_id: planId
     }
-    console.log('executeTrade:', tradeBody)
     const res = await fetch(API_BASE + '/rpc/execute_trade', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify(tradeBody)
     })
     const tradeResult = await res.text()
-    console.log('executeTrade result:', res.status, tradeResult)
     if (res.ok) {
       alert(type === 'buy' ? '買入成功！' : '賣出成功！')
       document.getElementById('stockResult').style.display = 'none'
@@ -506,7 +500,6 @@ async function loadPlans() {
   try {
     const res = await fetch(API_BASE + '/rpc/get_plans', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username }) })
     const txt = await res.text()
-    console.log('loadPlans:', res.status, txt)
     plans = (res.ok ? (JSON.parse(txt) || []) : [])
     renderPlanSelector()
   } catch(_) { plans = [] }
@@ -544,10 +537,8 @@ function showCreatePlan() {
 }
 
 async function createPlan(name, strategy) {
-  console.log('createPlan:', currentUser.username, name, strategy)
   const res = await fetch(API_BASE + '/rpc/create_plan', { method:'POST', headers:HEADERS, body:JSON.stringify({ p_username: currentUser.username, p_plan_name: name, p_strategy: strategy }) })
   const txt = await res.text()
-  console.log('createPlan response:', res.status, txt)
   let data = []
   try { data = JSON.parse(txt) } catch(_) {}
   if (res.ok && data && data.length) { await loadPlans(); renderPlans() }
