@@ -265,14 +265,15 @@ async function executeTrade() {
       body: JSON.stringify(tradeBody)
     })
     const tradeResult = await res.text()
-    if (res.ok) {
+    if (res.ok && tradeResult === '"ok"') {
       alert(type === 'buy' ? '買入成功！' : '賣出成功！')
       document.getElementById('stockResult').style.display = 'none'
       document.getElementById('stockSearch').value = ''
       await Promise.all([loadSummary(), loadPortfolio()])
       switchTab('dashboard')
     } else {
-      err.textContent = '交易失敗: ' + (tradeResult.includes('insufficient') ? '資金不足' : tradeResult.includes('no_shares') ? '持股不足' : tradeResult)
+      const msg = tradeResult.includes('insufficient') ? '資金不足' : tradeResult.includes('no_shares') ? '持股不足' : tradeResult
+      err.textContent = '交易失敗: ' + msg
       err.style.display = 'block'
     }
   } catch (ex) {
@@ -346,13 +347,13 @@ async function quickTrade(type) {
         p_plan_id: document.getElementById('tradePlan') ? document.getElementById('tradePlan').value || null : null
       })
     })
-    if (tradeRes.ok) {
+    const tradeTxt = await tradeRes.text()
+    if (tradeRes.ok && tradeTxt === '"ok"') {
       alert(type === 'buy' ? '買入成功！' : '賣出成功！')
       await Promise.all([loadSummary(), loadPortfolio()])
       switchTab('dashboard')
     } else {
-      const txt = await tradeRes.text()
-      alert('交易失敗: ' + (txt.includes('insufficient') ? '資金不足' : txt.includes('no_shares') ? '持股不足' : txt))
+      alert('交易失敗: ' + (tradeTxt.includes('insufficient') ? '資金不足' : tradeTxt.includes('no_shares') ? '持股不足' : tradeTxt))
     }
   } catch (ex) {
     alert('錯誤: ' + ex.message)
