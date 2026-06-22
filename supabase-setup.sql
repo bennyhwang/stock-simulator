@@ -400,13 +400,23 @@ DROP FUNCTION IF EXISTS create_plan(TEXT,TEXT,TEXT);
 CREATE OR REPLACE FUNCTION create_plan(p_username TEXT, p_plan_name TEXT, p_strategy TEXT DEFAULT NULL)
 RETURNS TABLE(id BIGINT, plan_name TEXT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_tid BIGINT; v_new_id BIGINT;
+DECLARE
+  v_trader_id BIGINT;
+  v_result_id BIGINT;
 BEGIN
-  SELECT id INTO v_tid FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
-  INSERT INTO trading_plans (trader_id, plan_name, strategy) VALUES (v_tid, p_plan_name, p_strategy)
-  RETURNING trading_plans.id INTO v_new_id;
-  RETURN QUERY SELECT v_new_id AS out_id, p_plan_name AS out_name;
+
+  INSERT INTO trading_plans (trader_id, plan_name, strategy)
+  VALUES (v_trader_id, p_plan_name, p_strategy);
+
+  SELECT tp.id INTO v_result_id FROM trading_plans tp
+  WHERE tp.trader_id = v_trader_id AND tp.plan_name = p_plan_name
+  ORDER BY tp.id DESC LIMIT 1;
+
+  id := v_result_id;
+  plan_name := p_plan_name;
+  RETURN NEXT;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION create_plan TO anon;
