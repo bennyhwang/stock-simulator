@@ -426,7 +426,7 @@ RETURNS TABLE(id BIGINT, plan_name TEXT, strategy TEXT, created_at TIMESTAMPTZ)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE v_tid BIGINT;
 BEGIN
-  SELECT id INTO v_tid FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_tid FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
   RETURN QUERY SELECT tp.id, tp.plan_name, tp.strategy, tp.created_at FROM trading_plans tp WHERE tp.trader_id = v_tid ORDER BY tp.created_at DESC;
 END;
