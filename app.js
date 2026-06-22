@@ -94,8 +94,10 @@ async function loadSummary() {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: currentUser.username })
     })
+    const txt = await res.text()
+    console.log('loadSummary:', res.status, txt)
     if (res.ok) {
-      const data = await res.json()
+      const data = JSON.parse(txt || '[]')
       if (data && data.length) {
         const s = data[0]
         let mv = Number(s.market_value || 0)
@@ -152,8 +154,10 @@ async function loadPortfolio() {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({ p_username: currentUser.username })
     })
+    const txt = await res.text()
+    console.log('loadPortfolio:', res.status, txt)
     if (!res.ok) { portfolioCache = []; return }
-    portfolioCache = (await res.json()) || []
+    portfolioCache = (JSON.parse(txt || '[]')) || []
     // Try to enrich with real prices
     if (portfolioCache.length) {
       const syms = portfolioCache.map(function(p) { return p.symbol })
@@ -250,18 +254,22 @@ async function executeTrade() {
 
   try {
     const planId = document.getElementById('tradePlan') ? document.getElementById('tradePlan').value || null : null
+    const tradeBody = {
+      p_username: currentUser.username,
+      p_symbol: currentStockData.symbol,
+      p_name: currentStockData.name || '',
+      p_price: currentStockData.price,
+      p_quantity: qty,
+      p_type: type,
+      p_plan_id: planId
+    }
+    console.log('executeTrade:', tradeBody)
     const res = await fetch(API_BASE + '/rpc/execute_trade', {
       method: 'POST', headers: HEADERS,
-      body: JSON.stringify({
-        p_username: currentUser.username,
-        p_symbol: currentStockData.symbol,
-        p_name: currentStockData.name || '',
-        p_price: currentStockData.price,
-        p_quantity: qty,
-        p_type: type,
-        p_plan_id: planId
-      })
+      body: JSON.stringify(tradeBody)
     })
+    const tradeResult = await res.text()
+    console.log('executeTrade result:', res.status, tradeResult)
     if (res.ok) {
       alert(type === 'buy' ? '買入成功！' : '賣出成功！')
       document.getElementById('stockResult').style.display = 'none'
@@ -269,8 +277,7 @@ async function executeTrade() {
       await Promise.all([loadSummary(), loadPortfolio()])
       switchTab('dashboard')
     } else {
-      const txt = await res.text()
-      err.textContent = '交易失敗: ' + (txt.includes('insufficient') ? '資金不足' : txt.includes('no_shares') ? '持股不足' : txt)
+      err.textContent = '交易失敗: ' + (tradeResult.includes('insufficient') ? '資金不足' : tradeResult.includes('no_shares') ? '持股不足' : tradeResult)
       err.style.display = 'block'
     }
   } catch (ex) {
