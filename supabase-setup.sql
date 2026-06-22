@@ -7,8 +7,11 @@ CREATE TABLE IF NOT EXISTS traders (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE traders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_read_traders" ON traders;
 CREATE POLICY "anon_read_traders" ON traders FOR SELECT TO anon USING (true);
+DROP POLICY IF EXISTS "anon_insert_traders" ON traders;
 CREATE POLICY "anon_insert_traders" ON traders FOR INSERT TO anon WITH CHECK (true);
+DROP POLICY IF EXISTS "anon_update_traders" ON traders;
 CREATE POLICY "anon_update_traders" ON traders FOR UPDATE TO anon USING (true) WITH CHECK (true);
 
 CREATE TABLE IF NOT EXISTS portfolios (
@@ -21,6 +24,7 @@ CREATE TABLE IF NOT EXISTS portfolios (
   UNIQUE(trader_id, symbol)
 );
 ALTER TABLE portfolios ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_portfolios" ON portfolios;
 CREATE POLICY "anon_all_portfolios" ON portfolios FOR ALL TO anon USING (true) WITH CHECK (true);
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -34,6 +38,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_transactions" ON transactions;
 CREATE POLICY "anon_all_transactions" ON transactions FOR ALL TO anon USING (true) WITH CHECK (true);
 
 CREATE TABLE IF NOT EXISTS stock_prices (
@@ -105,6 +110,7 @@ INSERT INTO stock_prices (symbol, name, base_price) VALUES
   ('002352', 'SF Holding', 42.50)
 ON CONFLICT (symbol) DO NOTHING;
 ALTER TABLE stock_prices ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_stock_prices" ON stock_prices;
 CREATE POLICY "anon_all_stock_prices" ON stock_prices FOR ALL TO anon USING (true) WITH CHECK (true);
 
 CREATE OR REPLACE FUNCTION register_trader(p_username TEXT, p_password TEXT)
@@ -277,6 +283,7 @@ CREATE TABLE IF NOT EXISTS trading_plans (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ALTER TABLE trading_plans ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_trading_plans" ON trading_plans;
 CREATE POLICY "anon_all_trading_plans" ON trading_plans FOR ALL TO anon USING (true) WITH CHECK (true);
 
 CREATE TABLE IF NOT EXISTS plan_stocks (
@@ -287,6 +294,7 @@ CREATE TABLE IF NOT EXISTS plan_stocks (
   UNIQUE(plan_id, symbol)
 );
 ALTER TABLE plan_stocks ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_plan_stocks" ON plan_stocks;
 CREATE POLICY "anon_all_plan_stocks" ON plan_stocks FOR ALL TO anon USING (true) WITH CHECK (true);
 
 ALTER TABLE portfolios ADD COLUMN IF NOT EXISTS plan_id BIGINT REFERENCES trading_plans(id) ON DELETE SET NULL;
