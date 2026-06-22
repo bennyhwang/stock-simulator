@@ -158,6 +158,7 @@ async function loadPortfolio() {
     console.log('loadPortfolio:', res.status, txt)
     if (!res.ok) { portfolioCache = []; return }
     portfolioCache = (JSON.parse(txt || '[]')) || []
+    console.log('portfolioCache:', portfolioCache)
     // Try to enrich with real prices
     if (portfolioCache.length) {
       const syms = portfolioCache.map(function(p) { return p.symbol })

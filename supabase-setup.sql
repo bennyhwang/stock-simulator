@@ -251,7 +251,7 @@ BEGIN
          COALESCE(SUM(p.quantity * ROUND((sp.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2) - p.avg_cost), 0)
   INTO v_mv, v_pnl
   FROM portfolios p
-  JOIN stock_prices sp ON sp.symbol = p.symbol
+  LEFT JOIN stock_prices sp ON sp.symbol = p.symbol
   WHERE p.trader_id = v_trader_id AND p.quantity > 0
     AND (p_plan_id IS NULL OR p.plan_id = p_plan_id);
 
@@ -278,7 +278,7 @@ BEGIN
   FOR rec IN
     SELECT p.symbol, p.name, p.quantity, p.avg_cost, sp.base_price, p.plan_id
     FROM portfolios p
-    JOIN stock_prices sp ON sp.symbol = p.symbol
+    LEFT JOIN stock_prices sp ON sp.symbol = p.symbol
     WHERE p.trader_id = v_trader_id AND p.quantity > 0
       AND (p_plan_id IS NULL OR p.plan_id = p_plan_id)
     ORDER BY p.symbol
@@ -287,7 +287,7 @@ BEGIN
     name := rec.name;
     quantity := rec.quantity;
     avg_cost := rec.avg_cost;
-    market_price := ROUND((rec.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2);
+    market_price := COALESCE(ROUND((rec.base_price * (1.0 + (random() - 0.5) * 0.1))::numeric, 2), rec.avg_cost);
     plan_id := rec.plan_id;
     RETURN NEXT;
   END LOOP;
