@@ -166,7 +166,7 @@ DECLARE
   v_cost DECIMAL(18,2);
   v_held BIGINT;
 BEGIN
-  SELECT id, cash_balance INTO v_trader_id, v_cash FROM traders WHERE username = p_username;
+  SELECT t.id, t.cash_balance INTO v_trader_id, v_cash FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN 'not_found'; END IF;
 
   IF p_type = 'buy' THEN
@@ -206,7 +206,7 @@ DECLARE
   v_mv DECIMAL := 0;
   v_pnl DECIMAL := 0;
 BEGIN
-  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
 
   SELECT COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2)), 0),
@@ -216,7 +216,7 @@ BEGIN
   JOIN stock_prices sp ON sp.symbol = p.symbol
   WHERE p.trader_id = v_trader_id;
 
-  RETURN QUERY SELECT t.cash_balance, v_mv, v_pnl FROM traders t WHERE t.id = v_trader_id;
+  RETURN QUERY SELECT tr.cash_balance, v_mv, v_pnl FROM traders tr WHERE tr.id = v_trader_id;
 END;
 $$;
 GRANT EXECUTE ON FUNCTION get_trader_summary TO anon;
@@ -228,7 +228,7 @@ DECLARE
   v_trader_id BIGINT;
   rec RECORD;
 BEGIN
-  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
   FOR rec IN
     SELECT p.symbol, p.name, p.quantity, p.avg_cost, sp.base_price
@@ -254,14 +254,14 @@ LANGUAGE plpgsql SECURITY DEFINER AS $$
 DECLARE
   v_trader_id BIGINT;
 BEGIN
-  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
   RETURN QUERY
-  SELECT t.symbol, t.name, t.type, t.quantity, t.price, t.created_at, t.plan_id
-  FROM transactions t
-  WHERE t.trader_id = v_trader_id
-    AND (p_search IS NULL OR t.symbol ILIKE '%' || p_search || '%')
-  ORDER BY t.created_at DESC
+  SELECT tr.symbol, tr.name, tr.type, tr.quantity, tr.price, tr.created_at, tr.plan_id
+  FROM transactions tr
+  WHERE tr.trader_id = v_trader_id
+    AND (p_search IS NULL OR tr.symbol ILIKE '%' || p_search || '%')
+  ORDER BY tr.created_at DESC
   LIMIT 100;
 END;
 $$;
@@ -305,7 +305,7 @@ DECLARE
   v_cost DECIMAL(18,2);
   v_held BIGINT;
 BEGIN
-  SELECT id, cash_balance INTO v_trader_id, v_cash FROM traders WHERE username = p_username;
+  SELECT t.id, t.cash_balance INTO v_trader_id, v_cash FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN 'not_found'; END IF;
 
   IF p_type = 'buy' THEN
@@ -338,6 +338,7 @@ $$;
 GRANT EXECUTE ON FUNCTION execute_trade TO anon;
 
 DROP FUNCTION IF EXISTS get_trader_summary(TEXT);
+DROP FUNCTION IF EXISTS get_trader_summary(TEXT,BIGINT);
 CREATE OR REPLACE FUNCTION get_trader_summary(p_username TEXT, p_plan_id BIGINT DEFAULT NULL)
 RETURNS TABLE(cash DECIMAL, market_value DECIMAL, total_pnl DECIMAL)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -346,7 +347,7 @@ DECLARE
   v_mv DECIMAL := 0;
   v_pnl DECIMAL := 0;
 BEGIN
-  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
 
   SELECT COALESCE(SUM(p.quantity * ROUND(sp.base_price * (1.0 + (random() - 0.5) * 0.1), 2)), 0),
@@ -358,7 +359,7 @@ BEGIN
     AND (p_plan_id IS NULL OR p.plan_id = p_plan_id);
 
   IF p_plan_id IS NULL THEN
-    RETURN QUERY SELECT t.cash_balance, v_mv, v_pnl FROM traders t WHERE t.id = v_trader_id;
+    RETURN QUERY SELECT tr.cash_balance, v_mv, v_pnl FROM traders tr WHERE tr.id = v_trader_id;
   ELSE
     RETURN QUERY SELECT 0::DECIMAL, v_mv, v_pnl;
   END IF;
@@ -367,6 +368,7 @@ $$;
 GRANT EXECUTE ON FUNCTION get_trader_summary TO anon;
 
 DROP FUNCTION IF EXISTS get_trader_portfolio(TEXT);
+DROP FUNCTION IF EXISTS get_trader_portfolio(TEXT,BIGINT);
 CREATE OR REPLACE FUNCTION get_trader_portfolio(p_username TEXT, p_plan_id BIGINT DEFAULT NULL)
 RETURNS TABLE(symbol TEXT, name TEXT, quantity BIGINT, avg_cost DECIMAL, market_price DECIMAL, plan_id BIGINT)
 LANGUAGE plpgsql SECURITY DEFINER AS $$
@@ -374,7 +376,7 @@ DECLARE
   v_trader_id BIGINT;
   rec RECORD;
 BEGIN
-  SELECT id INTO v_trader_id FROM traders WHERE username = p_username;
+  SELECT t.id INTO v_trader_id FROM traders t WHERE t.username = p_username;
   IF NOT FOUND THEN RETURN; END IF;
   FOR rec IN
     SELECT p.symbol, p.name, p.quantity, p.avg_cost, sp.base_price, p.plan_id
