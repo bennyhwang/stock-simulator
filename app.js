@@ -83,7 +83,7 @@ function switchTab(name) {
 
 /* ===== Dashboard ===== */
 async function initApp() {
-  await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks(), loadPlans()])
+  await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks(), loadPlans(), loadHotSectors()])
   loadSummary()
 }
 
@@ -453,6 +453,65 @@ async function loadHistory() {
 /* ===== Helpers ===== */
 function fmt(n) { return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
+
+/* ===== Hot Sectors ===== */
+let sectorData = { industries: [], concepts: [] }
+let sectorTab = 'industry'
+
+async function loadHotSectors() {
+  const el = document.getElementById('sectorList')
+  if (!el) return
+  el.innerHTML = '<div class="sector-loading">載入中...</div>'
+  try {
+    const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_hot_sectors', {
+      headers: { Authorization: 'Bearer ' + ANON_KEY }
+    })
+    const txt = await res.text()
+    if (res.ok) {
+      let data = JSON.parse(txt)
+      sectorData.industries = data.industries || []
+      sectorData.concepts = data.concepts || []
+    } else {
+      sectorData = { industries: [], concepts: [] }
+    }
+  } catch (_) {
+    sectorData = { industries: [], concepts: [] }
+  }
+  renderSectors()
+}
+
+function renderSectors() {
+  const el = document.getElementById('sectorList')
+  if (!el) return
+  const items = sectorTab === 'industry' ? sectorData.industries : sectorData.concepts
+  if (!items || !items.length) {
+    el.innerHTML = '<div class="sector-loading">暫無數據</div>'
+    return
+  }
+  el.innerHTML = items.map(function(sec, i) {
+    const stocksHtml = sec.stocks && sec.stocks.length
+      ? '<div class="sector-stocks" id="sstocks' + i + '">' + sec.stocks.map(function(stk) {
+          return '<div class="sector-stock"><span>' + esc(stk.name) + '</span><span class="' + (stk.changePct >= 0 ? 'green' : 'red') + '">' + (stk.changePct >= 0 ? '+' : '') + stk.changePct + '%</span></div>'
+        }).join('') + '</div>'
+      : ''
+    return '<div class="sector-item" onclick="toggleSectorStocks(' + i + ')">'
+      + '<span><span class="sector-name">' + esc(sec.name) + '</span>' + stocksHtml + '</span>'
+      + '<span class="sector-change ' + (sec.changePct >= 0 ? 'green' : 'red') + '">' + (sec.changePct >= 0 ? '+' : '') + sec.changePct + '%</span>'
+      + '</div>'
+  }).join('')
+  document.getElementById('tabIndustry').className = 'tab-btn' + (sectorTab === 'industry' ? ' active' : '')
+  document.getElementById('tabConcept').className = 'tab-btn' + (sectorTab === 'concept' ? ' active' : '')
+}
+
+function toggleSectorStocks(i) {
+  const el = document.getElementById('sstocks' + i)
+  if (el) el.classList.toggle('open')
+}
+
+function switchSectorTab(tab) {
+  sectorTab = tab
+  renderSectors()
+}
 
 /* ===== Real Stock Price (Tencent Finance API) ===== */
 function symbolToTencentCode(sym) {

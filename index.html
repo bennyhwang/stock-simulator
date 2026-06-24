@@ -80,6 +80,16 @@
     /* Section display */
     .section { display: none; }
     .section.active { display: block; }
+    .tab-btn { padding:0.4rem 1rem;background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:8px;cursor:pointer;font-size:0.85rem; }
+    .tab-btn.active { background:#1f6feb;color:#f0f6fc;border-color:#1f6feb; }
+    .sector-item { display:flex;justify-content:space-between;align-items:center;padding:0.6rem 0;border-bottom:1px solid #21262d;cursor:pointer; }
+    .sector-item:last-child { border-bottom:none; }
+    .sector-name { font-weight:600;color:#f0f6fc;font-size:0.9rem; }
+    .sector-change { font-weight:700;font-size:0.85rem; }
+    .sector-stocks { margin:0.3rem 0 0.5rem 0.8rem;padding-left:0.5rem;border-left:2px solid #30363d;display:none; }
+    .sector-stocks.open { display:block; }
+    .sector-stock { display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.82rem; }
+    .sector-loading { text-align:center;color:#8b949e;padding:2rem;font-size:0.9rem; }
 
     @media (max-width: 768px) {
       .trade-form { grid-template-columns: 1fr; }
@@ -215,9 +225,17 @@
       <div class="table-wrap">
         <table><thead><tr><th>時間</th><th>股票</th><th>名稱</th><th>類型</th><th>數量</th><th>成交價</th><th>金額</th><th>組合</th></tr></thead><tbody id="historyTable"></tbody></table>
       </div>
+      </div>
+    </div>
+    <div class="card" id="hotSectorsCard">
+      <h2>熱門板塊</h2>
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+        <button id="tabIndustry" class="tab-btn active" onclick="switchSectorTab('industry')">行業板塊</button>
+        <button id="tabConcept" class="tab-btn" onclick="switchSectorTab('concept')">概念板塊</button>
+      </div>
+      <div id="sectorList"></div>
     </div>
   </div>
-</div>
 
 <script src="app.js"></script>
 </body>
