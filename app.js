@@ -464,7 +464,9 @@ async function loadHotSectors() {
   el.innerHTML = '<div class="sector-loading">載入中...</div>'
   try {
     const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_hot_sectors', {
-      headers: { Authorization: 'Bearer ' + ANON_KEY }
+      method: 'POST',
+      headers: { Authorization: 'Bearer ' + ANON_KEY, 'Content-Type': 'application/json' },
+      body: '{}'
     })
     const txt = await res.text()
     if (res.ok) {
