@@ -228,7 +228,10 @@
       </div>
     </div>
     <div class="card" id="hotSectorsCard">
-      <h2>熱門板塊</h2>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <h2 style="margin:0;">熱門板塊</h2>
+        <button onclick="loadHotSectors()" style="padding:0.35rem 0.8rem;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;cursor:pointer;font-size:0.8rem;">🔄 刷新</button>
+      </div>
       <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
         <button id="tabIndustry" class="tab-btn active" onclick="switchSectorTab('industry')">行業板塊</button>
         <button id="tabConcept" class="tab-btn" onclick="switchSectorTab('concept')">概念板塊</button>

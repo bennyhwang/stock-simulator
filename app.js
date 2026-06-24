@@ -85,6 +85,8 @@ function switchTab(name) {
 async function initApp() {
   await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks(), loadPlans(), loadHotSectors()])
   loadSummary()
+  // Auto-refresh hot sectors every 5 minutes
+  setInterval(function() { loadHotSectors(true) }, 300000)
 }
 
 async function loadSummary() {
@@ -458,10 +460,10 @@ function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt
 let sectorData = { industries: [], concepts: [] }
 let sectorTab = 'industry'
 
-async function loadHotSectors() {
+async function loadHotSectors(silent) {
   const el = document.getElementById('sectorList')
   if (!el) return
-  el.innerHTML = '<div class="sector-loading">載入中...</div>'
+  if (!silent) el.innerHTML = '<div class="sector-loading">載入中...</div>'
   try {
     const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_hot_sectors', {
       method: 'POST',
@@ -474,10 +476,10 @@ async function loadHotSectors() {
       sectorData.industries = data.industries || []
       sectorData.concepts = data.concepts || []
     } else {
-      sectorData = { industries: [], concepts: [] }
+      if (!silent) sectorData = { industries: [], concepts: [] }
     }
   } catch (_) {
-    sectorData = { industries: [], concepts: [] }
+    if (!silent) sectorData = { industries: [], concepts: [] }
   }
   renderSectors()
 }
