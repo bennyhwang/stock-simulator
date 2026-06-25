@@ -339,9 +339,12 @@ async function onQuickStockChange() {
 }
 
 async function quickTrade(type) {
-  const [symbol, name] = document.getElementById('quickStock').value.split('|')
+  const parts = document.getElementById('quickStock').value.split('|')
+  const symbol = parts[0] || ''
+  const name = parts[1] || ''
   const qty = parseInt(document.getElementById('quickQty').value)
   if (!qty || qty < 1) { alert('請輸入有效數量'); return }
+  if (!symbol) { alert('請選擇股票'); return }
 
   try {
     let price = 0
