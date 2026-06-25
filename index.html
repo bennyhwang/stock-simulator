@@ -185,7 +185,8 @@
     <div class="card">
       <h2>快速下單（港股）</h2>
       <div class="search-bar">
-        <select id="quickStock" style="flex:1;padding:0.6rem 1rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;"></select>
+        <select id="quickStock" onchange="onQuickStockChange()" style="flex:1;padding:0.6rem 1rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;"></select>
+        <span id="quickPrice" style="display:none;padding:0.4rem 0.8rem;background:#161b22;border:1px solid #30363d;border-radius:8px;font-size:0.9rem;font-weight:600;white-space:nowrap;"></span>
         <input type="number" id="quickQty" min="1" value="100" style="width:100px;padding:0.6rem 1rem;background:#0d1117;border:1px solid #30363d;border-radius:8px;color:#c9d1d9;font-size:0.9rem;outline:none;">
         <button onclick="quickTrade('buy')" style="padding:0.6rem 1.2rem;background:#238636;color:#fff;border:none;border-radius:8px;cursor:pointer;">買入</button>
         <button onclick="quickTrade('sell')" style="padding:0.6rem 1.2rem;background:#da3633;color:#fff;border:none;border-radius:8px;cursor:pointer;">賣出</button>

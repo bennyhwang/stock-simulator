@@ -316,6 +316,28 @@ async function loadQuickStocks() {
   sel.innerHTML = stocks.map(s => `<option value="${s.symbol}|${s.name}">${s.symbol} - ${s.name}</option>`).join('')
 }
 
+async function onQuickStockChange() {
+  const val = document.getElementById('quickStock').value
+  const priceEl = document.getElementById('quickPrice')
+  if (!val) { priceEl.style.display = 'none'; return }
+  const symbol = val.split('|')[0]
+  priceEl.textContent = '\u23F3'
+  priceEl.style.display = 'inline-block'
+  try {
+    const real = await getRealPrice(symbol)
+    if (real && real.price > 0) {
+      priceEl.textContent = '$' + fmt(real.price)
+      priceEl.style.color = '#3fb950'
+    } else {
+      priceEl.textContent = 'N/A'
+      priceEl.style.color = '#8b949e'
+    }
+  } catch (_) {
+    priceEl.textContent = 'N/A'
+    priceEl.style.color = '#8b949e'
+  }
+}
+
 async function quickTrade(type) {
   const [symbol, name] = document.getElementById('quickStock').value.split('|')
   const qty = parseInt(document.getElementById('quickQty').value)
