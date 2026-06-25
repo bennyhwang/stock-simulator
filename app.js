@@ -8,6 +8,8 @@ let portfolioCache = []
 let plans = []
 let currentPlanFilter = null // null=all, 0=no-plan, >0=plan_id
 let editingPlanId = null
+let ratesCache = { rates: null, ts: 0 }
+const RATES_TTL = 300000 // 5 min
 
 /* ===== Auth ===== */
 async function handleLogin(e) {
@@ -106,11 +108,11 @@ async function loadSummary() {
           const realMv = portfolioCache.reduce(function(sm, p) { return sm + (p.market_price || 0) * p.quantity }, 0)
           if (realMv > 0) { mv = realMv; pnl = realMv - portfolioCache.reduce(function(sm, p) { return sm + p.avg_cost * p.quantity }, 0) }
         }
-        document.getElementById('statCash').textContent = '$' + fmt(s.cash)
-        document.getElementById('statValue').textContent = '$' + fmt(mv)
-        document.getElementById('statTotal').textContent = '$' + fmt(Number(s.cash) + mv)
+        document.getElementById('statCash').textContent = CUR_HKD + ' ' + fmt(s.cash)
+        document.getElementById('statValue').textContent = CUR_HKD + ' ' + fmt(mv)
+        document.getElementById('statTotal').textContent = CUR_HKD + ' ' + fmt(Number(s.cash) + mv)
         const pnlEl = document.getElementById('statPnl')
-        pnlEl.textContent = (pnl >= 0 ? '+' : '') + '$' + fmt(pnl)
+        pnlEl.textContent = (pnl >= 0 ? '+' : '') + CUR_HKD + ' ' + fmt(pnl)
         pnlEl.className = 'value ' + (pnl >= 0 ? 'green' : 'red')
         // Load per-plan summary for dashboard plan breakdown
         await loadPlanSummaries()
@@ -121,7 +123,7 @@ async function loadSummary() {
     const fb = await fetch(API_BASE + '/traders?select=cash_balance&username=eq.' + encodeURIComponent(currentUser.username), { headers: HEADERS })
     if (fb.ok) {
       const fd = await fb.json()
-      if (fd && fd.length) document.getElementById('statCash').textContent = '$' + fmt(fd[0].cash_balance)
+      if (fd && fd.length) document.getElementById('statCash').textContent = CUR_HKD + ' ' + fmt(fd[0].cash_balance)
     }
   } catch (_) {}
 }
@@ -140,7 +142,7 @@ async function loadPlanSummaries() {
         const sv = sd[0]
         const smv = Number(sv.market_value || 0)
         const spnl = Number(sv.total_pnl || 0)
-        rows += '<tr><td>' + esc(p.plan_name) + '</td><td>$' + fmt(smv) + '</td><td class="' + (spnl >= 0 ? 'green' : 'red') + '">' + (spnl >= 0 ? '+' : '') + '$' + fmt(spnl) + '</td></tr>'
+        rows += '<tr><td>' + esc(p.plan_name) + '</td><td>' + CUR_HKD + ' ' + fmt(smv) + '</td><td class="' + (spnl >= 0 ? 'green' : 'red') + '">' + (spnl >= 0 ? '+' : '') + CUR_HKD + ' ' + fmt(spnl) + '</td></tr>'
       }
     }
   }
@@ -179,14 +181,15 @@ function renderPortfolioSummary() {
     const pnl = (p.market_price || 0) - (p.avg_cost || 0)
     const mv = (p.market_price || 0) * p.quantity
     const totalPnl = pnl * p.quantity
+    const cur = getCurrency(p.symbol)
     return `<tr>
       <td><strong>${esc(p.symbol)}</strong></td>
       <td>${esc(p.name || '')}</td>
       <td>${p.quantity}</td>
-      <td>$${fmt(p.avg_cost)}</td>
-      <td class="${pnl >= 0 ? 'green' : 'red'}">$${fmt(p.market_price)}</td>
-      <td>$${fmt(mv)}</td>
-      <td class="${totalPnl >= 0 ? 'green' : 'red'}">${totalPnl >= 0 ? '+' : ''}$${fmt(totalPnl)}</td>
+      <td>${cur} ${fmt(p.avg_cost)}</td>
+      <td class="${pnl >= 0 ? 'green' : 'red'}">${cur} ${fmt(p.market_price)}</td>
+      <td>${cur} ${fmt(mv)}</td>
+      <td class="${totalPnl >= 0 ? 'green' : 'red'}">${totalPnl >= 0 ? '+' : ''}${cur} ${fmt(totalPnl)}</td>
     </tr>`
   }).join('')
 }
@@ -237,7 +240,13 @@ function showStockData(s) {
   document.getElementById('stockSymbol').textContent = s.symbol
   const price = s.price || 0
   const priceEl = document.getElementById('stockPrice')
-  priceEl.textContent = '$' + fmt(price)
+  const cur = getCurrency(s.symbol)
+  let display = cur + ' ' + fmt(price)
+  if (cur !== 'HKD') {
+    const rate = ratesCache.rates ? ratesCache.rates[cur] : null
+    if (rate) display += ' (\u2248 HKD ' + fmt(Math.round(price * rate * 100) / 100) + ')'
+  }
+  priceEl.textContent = display
   priceEl.style.color = price > 0 ? '#3fb950' : '#f85149'
   document.getElementById('tradeQty').value = 100
   document.getElementById('stockResult').style.display = 'block'
@@ -253,11 +262,13 @@ async function executeTrade() {
 
   try {
     const planId = document.getElementById('tradePlan') ? document.getElementById('tradePlan').value || null : null
+    const rate = await getExchangeRate(getCurrency(currentStockData.symbol))
+    const hkdPrice = Math.round(currentStockData.price * rate * 100) / 100
     const tradeBody = {
       p_username: currentUser.username,
       p_symbol: currentStockData.symbol,
       p_name: currentStockData.name || '',
-      p_price: currentStockData.price,
+      p_price: hkdPrice,
       p_quantity: qty,
       p_type: type,
       p_plan_id: planId
@@ -326,7 +337,13 @@ async function onQuickStockChange() {
   try {
     const real = await getRealPrice(symbol)
     if (real && real.price > 0) {
-      priceEl.textContent = '$' + fmt(real.price)
+      const cur = getCurrency(symbol)
+      let display = cur + ' ' + fmt(real.price)
+      if (cur !== 'HKD') {
+        const rate = ratesCache.rates ? ratesCache.rates[cur] : null
+        if (rate) display += ' (\u2248 HKD ' + fmt(Math.round(real.price * rate * 100) / 100) + ')'
+      }
+      priceEl.textContent = display
       priceEl.style.color = '#3fb950'
     } else {
       priceEl.textContent = 'N/A'
@@ -361,13 +378,17 @@ async function quickTrade(type, directSymbol, directName, directQty) {
       price = data[0].price
     }
 
+    // Convert to HKD
+    const rate = await getExchangeRate(getCurrency(symbol))
+    const hkdPrice = Math.round(price * rate * 100) / 100
+
     const tradeRes = await fetch(API_BASE + '/rpc/execute_trade', {
       method: 'POST', headers: HEADERS,
       body: JSON.stringify({
         p_username: currentUser.username,
         p_symbol: symbol,
         p_name: name,
-        p_price: price,
+        p_price: hkdPrice,
         p_quantity: qty,
         p_type: type,
         p_plan_id: document.getElementById('tradePlan') ? document.getElementById('tradePlan').value || null : null
@@ -406,15 +427,16 @@ function renderPortfolio() {
     const pnl = (p.market_price || 0) - (p.avg_cost || 0)
     const mv = (p.market_price || 0) * p.quantity
     const totalPnl = pnl * p.quantity
+    const cur = getCurrency(p.symbol)
     return '<tr>'
       + '<td><strong>' + esc(p.symbol) + '</strong></td>'
       + '<td>' + esc(p.name || '') + '</td>'
       + '<td style="color:#8b949e;font-size:0.85rem;">' + (p.plan_id ? esc(planNames[p.plan_id] || '組合#' + p.plan_id) : '<span style="color:#484f58;">不指定</span>') + '</td>'
       + '<td>' + p.quantity + '</td>'
-      + '<td>$' + fmt(p.avg_cost) + '</td>'
-      + '<td class="' + (pnl >= 0 ? 'green' : 'red') + '">$' + fmt(p.market_price) + '</td>'
-      + '<td>$' + fmt(mv) + '</td>'
-      + '<td class="' + (totalPnl >= 0 ? 'green' : 'red') + '">' + (totalPnl >= 0 ? '+' : '') + '$' + fmt(totalPnl) + '</td>'
+      + '<td>' + cur + ' ' + fmt(p.avg_cost) + '</td>'
+      + '<td class="' + (pnl >= 0 ? 'green' : 'red') + '">' + cur + ' ' + fmt(p.market_price) + '</td>'
+      + '<td>' + cur + ' ' + fmt(mv) + '</td>'
+      + '<td class="' + (totalPnl >= 0 ? 'green' : 'red') + '">' + (totalPnl >= 0 ? '+' : '') + cur + ' ' + fmt(totalPnl) + '</td>'
       + '<td><button onclick="quickSell(\'' + p.symbol + '\',\'' + esc(p.name) + '\',' + p.quantity + ')" style="padding:0.3rem 0.8rem;background:#da3633;border:none;color:#fff;border-radius:6px;cursor:pointer;">賣出</button></td>'
       + '</tr>'
   }).join('')
@@ -466,8 +488,8 @@ async function loadHistory() {
         + '<td>' + esc(t.name || '') + '</td>'
         + '<td class="' + (isBuy ? 'green' : 'red') + '">' + (isBuy ? '買入' : '賣出') + '</td>'
         + '<td>' + t.quantity + '</td>'
-        + '<td>$' + fmt(t.price) + '</td>'
-        + '<td class="' + (isBuy ? 'red' : 'green') + '">' + (isBuy ? '-' : '+') + '$' + fmt(t.price * t.quantity) + '</td>'
+        + '<td>' + fmtPrice(t.symbol, t.price) + '</td>'
+        + '<td class="' + (isBuy ? 'red' : 'green') + '">' + (isBuy ? '-' : '+') + fmtPrice(t.symbol, t.price * t.quantity) + '</td>'
         + '<td style="color:#8b949e;font-size:0.85rem;">' + (t.plan_id ? esc(planNames[t.plan_id] || '組合#' + t.plan_id) : '<span style="color:#484f58;">不指定</span>') + '</td>'
         + '</tr>'
     }).join('')
@@ -476,6 +498,13 @@ async function loadHistory() {
 
 /* ===== Helpers ===== */
 function fmt(n) { return Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
+function getCurrency(sym) {
+  if (sym && sym.endsWith('.HK')) return 'HKD'
+  if (sym && /^[A-Z]+$/.test(sym)) return 'USD'
+  return 'CNY'
+}
+function fmtPrice(sym, val) { return getCurrency(sym) + ' ' + fmt(val) }
+const CUR_HKD = 'HKD'
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 
 /* ===== Hot Sectors ===== */
@@ -595,6 +624,32 @@ async function fetchPricesFallback(symbols) {
     if (!res.ok) return {}
     return await res.json()
   } catch (_) { return {} }
+}
+
+async function getExchangeRate(targetCurrency) {
+  if (targetCurrency === 'HKD' || !targetCurrency) return 1
+  const now = Date.now()
+  if (ratesCache.rates && (now - ratesCache.ts) < RATES_TTL) {
+    return ratesCache.rates[targetCurrency] || 1
+  }
+  try {
+    const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_rates', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+      signal: AbortSignal.timeout(5000)
+    })
+    if (res.ok) {
+      ratesCache.rates = await res.json()
+      ratesCache.ts = now
+      return ratesCache.rates[targetCurrency] || 1
+    }
+  } catch (_) {}
+  // Fallback hardcoded
+  const fb = { USD: 7.8, CNY: 1.1 }
+  ratesCache.rates = fb
+  ratesCache.ts = now
+  return fb[targetCurrency] || 1
 }
 
 async function getRealPrice(symbol) {
