@@ -1,0 +1,21 @@
+name: Deploy Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths: ['supabase/**', '.github/workflows/**']
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase functions deploy get_stock_prices --project-ref fuuwjceawowojecaqfru
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - run: supabase functions deploy get_hot_sectors --project-ref fuuwjceawowojecaqfru
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

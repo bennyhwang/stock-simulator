@@ -157,10 +157,10 @@ async function loadPortfolio() {
     const txt = await res.text()
     if (!res.ok) { portfolioCache = []; return }
     portfolioCache = (JSON.parse(txt || '[]')) || []
-    // Try to enrich with real prices
+    // Try to enrich with real prices (Tencent + Yahoo Finance fallback)
     if (portfolioCache.length) {
       const syms = portfolioCache.map(function(p) { return p.symbol })
-      const real = await fetchRealPrices(syms)
+      const real = await getRealPricesMulti(syms)
       portfolioCache.forEach(function(p) {
         if (real[p.symbol]) p.market_price = real[p.symbol].price
       })
@@ -553,7 +553,12 @@ function symbolToTencentCode(sym) {
 
 async function fetchRealPrices(symbols) {
   if (!symbols || !symbols.length) return {}
-  const codes = symbols.map(symbolToTencentCode).filter(Boolean)
+  const codeToSymbol = {}
+  const codes = symbols.map(function(s) {
+    const c = symbolToTencentCode(s)
+    if (c) codeToSymbol[c] = s
+    return c
+  }).filter(Boolean)
   if (!codes.length) return {}
   try {
     const res = await fetch('https://web.sqt.gtimg.cn/q=' + codes.join(','), { signal: AbortSignal.timeout(5000) })
@@ -564,21 +569,49 @@ async function fetchRealPrices(symbols) {
     text.split('\n').forEach(function(line) {
       line = line.trim()
       if (!line) return
-      const m = line.match(/^v_[^=]+="(.+)";?$/)
+      const m = line.match(/^v_([^=]+)="(.+)";?$/)
       if (!m) return
-      const parts = m[1].split('~')
+      const tencentCode = m[1]
+      const parts = m[2].split('~')
       if (parts.length < 5) return
       const price = parseFloat(parts[3])
       if (isNaN(price)) return
-      result[parts[2]] = { price: price, name: parts[1] || '', open: parseFloat(parts[5]) || 0, high: parseFloat(parts[9]) || 0, low: parseFloat(parts[10]) || 0, volume: parts[6] || '0' }
+      const origSymbol = codeToSymbol[tencentCode] || parts[2]
+      result[origSymbol] = { price: price, name: parts[1] || '', open: parseFloat(parts[5]) || 0, high: parseFloat(parts[9]) || 0, low: parseFloat(parts[10]) || 0, volume: parts[6] || '0' }
     })
     return result
   } catch (_) { return {} }
 }
 
+async function fetchPricesFallback(symbols) {
+  if (!symbols || !symbols.length) return {}
+  try {
+    const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_stock_prices', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: symbols }),
+      signal: AbortSignal.timeout(8000)
+    })
+    if (!res.ok) return {}
+    return await res.json()
+  } catch (_) { return {} }
+}
+
 async function getRealPrice(symbol) {
   const map = await fetchRealPrices([symbol])
-  return map[symbol] || null
+  if (map[symbol]) return map[symbol]
+  const fallback = await fetchPricesFallback([symbol])
+  return fallback[symbol] || null
+}
+
+async function getRealPricesMulti(symbols) {
+  const map = await fetchRealPrices(symbols)
+  const missing = symbols.filter(function(s) { return !map[s] })
+  if (missing.length) {
+    const fallback = await fetchPricesFallback(missing)
+    Object.assign(map, fallback)
+  }
+  return map
 }
 
 /* ===== Plan Management ===== */
