@@ -338,11 +338,10 @@ async function onQuickStockChange() {
   }
 }
 
-async function quickTrade(type) {
-  const parts = document.getElementById('quickStock').value.split('|')
-  const symbol = parts[0] || ''
-  const name = parts[1] || ''
-  const qty = parseInt(document.getElementById('quickQty').value)
+async function quickTrade(type, directSymbol, directName, directQty) {
+  const symbol = directSymbol || document.getElementById('quickStock').value.split('|')[0] || ''
+  const name = directName || document.getElementById('quickStock').value.split('|')[1] || ''
+  const qty = directQty || parseInt(document.getElementById('quickQty').value)
   if (!qty || qty < 1) { alert('請輸入有效數量'); return }
   if (!symbol) { alert('請選擇股票'); return }
 
@@ -440,9 +439,7 @@ function setPlanFilter(planId) {
 function quickSell(symbol, name, maxQty) {
   const qty = prompt(`賣出 ${symbol} (${name})\n最大可賣: ${maxQty} 股\n請輸入賣出數量:`, Math.min(maxQty, 100))
   if (!qty) return
-  document.getElementById('quickStock').value = symbol + '|' + name
-  document.getElementById('quickQty').value = qty
-  quickTrade('sell')
+  quickTrade('sell', symbol, name, parseInt(qty))
 }
 
 /* ===== History ===== */
