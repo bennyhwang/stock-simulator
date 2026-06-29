@@ -91,6 +91,20 @@
     .sector-stock { display:flex;justify-content:space-between;padding:0.3rem 0;font-size:0.82rem; }
     .sector-loading { text-align:center;color:#8b949e;padding:2rem;font-size:0.9rem; }
 
+    /* Chart */
+    .chart-container { position:relative; width:100%; height:420px; background:#0d1117; border:1px solid #21262d; border-radius:8px; overflow:hidden; }
+    .chart-container canvas { width:100%; height:100%; }
+    .chart-controls { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
+    .chart-controls select { padding:0.4rem 0.8rem; background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#c9d1d9; font-size:0.85rem; outline:none; }
+    .chart-controls .tf-btn { padding:0.35rem 0.8rem; background:#21262d; border:1px solid #30363d; color:#8b949e; border-radius:6px; cursor:pointer; font-size:0.8rem; }
+    .chart-controls .tf-btn.active { background:#1f6feb; color:#f0f6fc; border-color:#1f6feb; }
+    .chart-info { display:flex; gap:1.5rem; margin-bottom:0.8rem; flex-wrap:wrap; }
+    .chart-info .ci-item { font-size:0.85rem; }
+    .chart-info .ci-label { color:#8b949e; }
+    .chart-info .ci-value { color:#f0f6fc; font-weight:600; }
+    .chart-info .ci-value.green { color:#3fb950; }
+    .chart-info .ci-value.red { color:#f85149; }
+
     @media (max-width: 768px) {
       .trade-form { grid-template-columns: 1fr; }
       .account-summary { grid-template-columns: 1fr 1fr; }
@@ -125,6 +139,7 @@
       <button onclick="switchTab('portfolio')">持倉</button>
       <button onclick="switchTab('plans')">投資組合</button>
       <button onclick="switchTab('history')">交易紀錄</button>
+      <button onclick="switchTab('index')">大盤走勢</button>
     </div>
     <div class="user-info">
       <span id="userDisplay"></span>
@@ -239,6 +254,31 @@
       </div>
       <div id="sectorList"></div>
     </div>
+  </div>
+
+  <!-- Market Index -->
+  <div id="secIndex" class="section">
+    <div class="chart-controls">
+      <select id="indexSelect" onchange="loadIndexChart()">
+        <option value="sh">上證指數</option>
+        <option value="sz">深證成指</option>
+      </select>
+      <span style="color:#8b949e;font-size:0.85rem;">|</span>
+      <button class="tf-btn active" data-tf="intraday" onclick="switchTimeframe('intraday')">分時</button>
+      <button class="tf-btn" data-tf="daily" onclick="switchTimeframe('daily')">日K</button>
+      <button class="tf-btn" data-tf="weekly" onclick="switchTimeframe('weekly')">週K</button>
+      <button class="tf-btn" data-tf="monthly" onclick="switchTimeframe('monthly')">月K</button>
+      <span style="margin-left:auto;color:#8b949e;font-size:0.8rem;" id="indexLoading">就緒</span>
+    </div>
+    <div class="chart-info" id="indexInfo">
+      <div class="ci-item"><span class="ci-label">最新 </span><span class="ci-value" id="ciLatest">--</span></div>
+      <div class="ci-item"><span class="ci-label">漲跌 </span><span class="ci-value" id="ciChange">--</span></div>
+      <div class="ci-item"><span class="ci-label">漲跌幅 </span><span class="ci-value" id="ciChangePct">--</span></div>
+      <div class="ci-item"><span class="ci-label">開盤 </span><span class="ci-value" id="ciOpen">--</span></div>
+      <div class="ci-item"><span class="ci-label">最高 </span><span class="ci-value" id="ciHigh">--</span></div>
+      <div class="ci-item"><span class="ci-label">最低 </span><span class="ci-value" id="ciLow">--</span></div>
+    </div>
+    <div class="chart-container"><canvas id="indexChart"></canvas></div>
   </div>
 
 <script src="app.js"></script>

@@ -74,13 +74,14 @@ function switchTab(name) {
   document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'))
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
   const btn = Array.from(document.querySelectorAll('.nav-links button')).find(b => b.textContent.includes(
-    name === 'dashboard' ? '儀表板' : name === 'trade' ? '交易' : name === 'portfolio' ? '持倉' : name === 'plans' ? '投資組合' : '交易紀錄'
+    name === 'dashboard' ? '儀表板' : name === 'trade' ? '交易' : name === 'portfolio' ? '持倉' : name === 'plans' ? '投資組合' : name === 'index' ? '大盤走勢' : '交易紀錄'
   ))
   if (btn) btn.classList.add('active')
   document.getElementById('sec' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active')
   if (name === 'portfolio') renderPortfolio()
   if (name === 'plans') renderPlans()
   if (name === 'history') loadHistory()
+  if (name === 'index') { if (!indexLoaded) loadIndexChart(); else drawIndexChart() }
 }
 
 /* ===== Dashboard ===== */
@@ -566,6 +567,271 @@ function toggleSectorStocks(i) {
 function switchSectorTab(tab) {
   sectorTab = tab
   renderSectors()
+}
+
+/* ===== Index Chart ===== */
+let indexLoaded = false
+let indexData = []
+let indexType = 'intraday'
+let indexName = 'sh'
+
+function switchTimeframe(tf) {
+  document.querySelectorAll('.tf-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.tf === tf) })
+  indexType = tf
+  loadIndexChart()
+}
+
+async function loadIndexChart() {
+  indexName = document.getElementById('indexSelect').value
+  document.getElementById('indexLoading').textContent = '載入中...'
+  try {
+    const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_index_data', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index: indexName, type: indexType }),
+      signal: AbortSignal.timeout(10000)
+    })
+    if (!res.ok) { document.getElementById('indexLoading').textContent = '載入失敗'; return }
+    const data = await res.json()
+    if (!data || !data.data) { document.getElementById('indexLoading').textContent = '暫無數據'; return }
+    if (indexType === 'intraday') {
+      parseIntradayData(data.data)
+    } else {
+      parseKlineData(data.data)
+    }
+    drawIndexChart()
+    document.getElementById('indexLoading').textContent = indexData.length + ' 條數據'
+  } catch (_) {
+    document.getElementById('indexLoading').textContent = '載入失敗'
+  }
+}
+
+function parseIntradayData(d) {
+  indexData = []
+  const trends = d.trends || []
+  for (let i = 0; i < trends.length; i++) {
+    const parts = trends[i].split(',')
+    if (parts.length < 4) continue
+    const t = parts[0].trim()
+    const p = parseFloat(parts[1])
+    if (isNaN(p)) continue
+    indexData.push({ time: t, price: p, volume: parseFloat(parts[2]) || 0 })
+  }
+  // Update info
+  if (indexData.length) {
+    const first = indexData[0].price
+    const last = indexData[indexData.length - 1].price
+    const change = last - first
+    const pct = first ? (change / first * 100) : 0
+    updateIndexInfo(last, change, pct)
+  }
+}
+
+function parseKlineData(d) {
+  indexData = []
+  const klines = d.klines || []
+  for (let i = 0; i < klines.length; i++) {
+    const parts = klines[i].split(',')
+    if (parts.length < 6) continue
+    indexData.push({
+      time: parts[0].trim(),
+      open: parseFloat(parts[1]),
+      close: parseFloat(parts[2]),
+      high: parseFloat(parts[3]),
+      low: parseFloat(parts[4]),
+      volume: parseFloat(parts[5]) || 0
+    })
+  }
+  // Update info from last bar
+  if (indexData.length) {
+    const last = indexData[indexData.length - 1]
+    const prev = indexData.length > 1 ? indexData[indexData.length - 2] : last
+    const change = last.close - prev.close
+    const pct = prev.close ? (change / prev.close * 100) : 0
+    updateIndexInfo(last.close, change, pct, last.open, last.high, last.low)
+  }
+}
+
+function updateIndexInfo(latest, change, pct, open, high, low) {
+  document.getElementById('ciLatest').textContent = latest.toFixed(2)
+  const changeEl = document.getElementById('ciChange')
+  changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(2)
+  changeEl.className = 'ci-value ' + (change >= 0 ? 'green' : 'red')
+  const pctEl = document.getElementById('ciChangePct')
+  pctEl.textContent = (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%'
+  pctEl.className = 'ci-value ' + (pct >= 0 ? 'green' : 'red')
+  if (open !== undefined) document.getElementById('ciOpen').textContent = open.toFixed(2)
+  if (high !== undefined) document.getElementById('ciHigh').textContent = high.toFixed(2)
+  if (low !== undefined) document.getElementById('ciLow').textContent = low.toFixed(2)
+}
+
+function drawIndexChart() {
+  indexLoaded = true
+  const canvas = document.getElementById('indexChart')
+  if (!canvas || !indexData.length) return
+  const ctx = canvas.getContext('2d')
+  const rect = canvas.parentElement.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  canvas.width = rect.width * dpr
+  canvas.height = rect.height * dpr
+  canvas.style.width = rect.width + 'px'
+  canvas.style.height = rect.height + 'px'
+  ctx.scale(dpr, dpr)
+  const W = rect.width
+  const H = rect.height
+  const pad = { top: 20, bottom: 28, left: 60, right: 60 }
+  const cw = W - pad.left - pad.right
+  const ch = H - pad.top - pad.bottom
+
+  ctx.clearRect(0, 0, W, H)
+
+  if (indexType === 'intraday') {
+    drawLineChart(ctx, W, H, pad, cw, ch)
+  } else {
+    drawCandlestickChart(ctx, W, H, pad, cw, ch)
+  }
+}
+
+function drawLineChart(ctx, W, H, pad, cw, ch) {
+  const prices = indexData.map(function(d) { return d.price })
+  const minP = Math.min.apply(null, prices)
+  const maxP = Math.max.apply(null, prices)
+  const range = maxP - minP || 1
+  const midP = (maxP + minP) / 2
+  // Extend range for visual padding
+  const ext = range * 0.08
+  const yMin = minP - ext
+  const yMax = maxP + ext
+  const yRange = yMax - yMin || 1
+  const isUp = prices.length > 1 && prices[prices.length - 1] >= prices[0]
+
+  // Grid lines
+  ctx.strokeStyle = '#21262d'
+  ctx.lineWidth = 1
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ch / 4) * i
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke()
+    const val = yMax - (yRange / 4) * i
+    ctx.fillStyle = '#8b949e'
+    ctx.font = '11px sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText(val.toFixed(0), pad.left - 6, y + 4)
+  }
+
+  // Price line
+  ctx.strokeStyle = isUp ? '#3fb950' : '#f85149'
+  ctx.lineWidth = 1.5
+  ctx.beginPath()
+  for (let i = 0; i < prices.length; i++) {
+    const x = pad.left + (cw / (prices.length - 1 || 1)) * i
+    const y = pad.top + ch - ((prices[i] - yMin) / yRange) * ch
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  }
+  ctx.stroke()
+
+  // Fill under line
+  const lastX = pad.left + cw
+  const lastY = pad.top + ch
+  ctx.lineTo(lastX, lastY)
+  ctx.lineTo(pad.left, lastY)
+  ctx.closePath()
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch)
+  grad.addColorStop(0, isUp ? 'rgba(63,185,80,0.2)' : 'rgba(248,81,73,0.2)')
+  grad.addColorStop(1, isUp ? 'rgba(63,185,80,0.02)' : 'rgba(248,81,73,0.02)')
+  ctx.fillStyle = grad
+  ctx.fill()
+
+  // Last price label
+  const lp = prices[prices.length - 1]
+  const lx = pad.left + cw
+  const ly = pad.top + ch - ((lp - yMin) / yRange) * ch
+  ctx.fillStyle = isUp ? '#3fb950' : '#f85149'
+  ctx.font = 'bold 12px sans-serif'
+  ctx.textAlign = 'left'
+  ctx.fillText(lp.toFixed(2), lx + 4, ly + 4)
+
+  // Time labels (x-axis)
+  ctx.fillStyle = '#8b949e'
+  ctx.font = '10px sans-serif'
+  ctx.textAlign = 'center'
+  const step = Math.max(1, Math.floor(prices.length / 6))
+  for (let i = 0; i < prices.length; i += step) {
+    const x = pad.left + (cw / (prices.length - 1 || 1)) * i
+    const t = indexData[i].time
+    const label = t.length > 8 ? t.substring(t.length - 5) : t
+    ctx.fillText(label, x, H - 6)
+  }
+}
+
+function drawCandlestickChart(ctx, W, H, pad, cw, ch) {
+  // Calculate price range
+  let minP = Infinity, maxP = -Infinity
+  indexData.forEach(function(d) {
+    if (d.low < minP) minP = d.low
+    if (d.high > maxP) maxP = d.high
+  })
+  const range = maxP - minP || 1
+  const ext = range * 0.05
+  const yMin = minP - ext
+  const yMax = maxP + ext
+  const yRange = yMax - yMin || 1
+
+  // Grid lines
+  ctx.strokeStyle = '#21262d'
+  ctx.lineWidth = 1
+  for (let i = 0; i <= 5; i++) {
+    const y = pad.top + (ch / 5) * i
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke()
+    const val = yMax - (yRange / 5) * i
+    ctx.fillStyle = '#8b949e'
+    ctx.font = '11px sans-serif'
+    ctx.textAlign = 'right'
+    ctx.fillText(val.toFixed(0), pad.left - 6, y + 4)
+  }
+
+  // Candlesticks
+  const n = indexData.length
+  const candleW = Math.max(2, cw / n - 1.5)
+  const barW = Math.max(1, candleW * 0.35)
+
+  for (let i = 0; i < n; i++) {
+    const d = indexData[i]
+    const x = pad.left + (cw / n) * i + (cw / n - candleW) / 2
+    const isUp = d.close >= d.open
+    const color = isUp ? '#3fb950' : '#f85149'
+
+    // High-low line
+    const yHigh = pad.top + ch - ((d.high - yMin) / yRange) * ch
+    const yLow = pad.top + ch - ((d.low - yMin) / yRange) * ch
+    const yOpen = pad.top + ch - ((d.open - yMin) / yRange) * ch
+    const yClose = pad.top + ch - ((d.close - yMin) / yRange) * ch
+
+    ctx.strokeStyle = color
+    ctx.lineWidth = 1
+    ctx.beginPath(); ctx.moveTo(x + candleW / 2, yHigh); ctx.lineTo(x + candleW / 2, yLow); ctx.stroke()
+
+    // Body
+    ctx.fillStyle = color
+    const bodyTop = Math.min(yOpen, yClose)
+    const bodyH = Math.max(1, Math.abs(yClose - yOpen))
+    ctx.fillRect(x + (candleW - barW) / 2, bodyTop, barW, bodyH)
+  }
+
+  // Volume bars at bottom
+  const volH = 40
+  const volBaseY = pad.top + ch + 2
+  let maxVol = 0
+  indexData.forEach(function(d) { if (d.volume > maxVol) maxVol = d.volume })
+  if (maxVol > 0) {
+    for (let i = 0; i < n; i++) {
+      const d = indexData[i]
+      const x = pad.left + (cw / n) * i + (cw / n - candleW) / 2
+      const vh = (d.volume / maxVol) * volH
+      const isUp = d.close >= d.open
+      ctx.fillStyle = isUp ? 'rgba(63,185,80,0.4)' : 'rgba(248,81,73,0.4)'
+      ctx.fillRect(x + (candleW - barW) / 2, volBaseY + volH - vh, barW, vh)
+    }
+  }
 }
 
 /* ===== Real Stock Price (Tencent Finance API) ===== */
