@@ -612,19 +612,38 @@ function parseIntradayData(d) {
   for (let i = 0; i < trends.length; i++) {
     const parts = trends[i].split(',')
     if (parts.length < 4) continue
-    const t = parts[0].trim()
+    const raw = parts[0].trim()
+    // Extract HHMM from various formats (HHMM, YYYYMMDDHHMM, etc.)
+    const hhmm = raw.replace(/\D/g, '').slice(-4)
+    if (hhmm.length !== 4) continue
     const p = parseFloat(parts[1])
     if (isNaN(p)) continue
-    indexData.push({ time: t, price: p, volume: parseFloat(parts[2]) || 0 })
+    indexData.push({ time: hhmm, price: p, volume: parseFloat(parts[2]) || 0 })
   }
-  // Update info
+  // Update info from first (open) and last (current) price
   if (indexData.length) {
     const first = indexData[0].price
     const last = indexData[indexData.length - 1].price
     const change = last - first
     const pct = first ? (change / first * 100) : 0
-    updateIndexInfo(last, change, pct)
+    updateIndexInfo(last, change, pct, first, 0, 0)
   }
+}
+
+function intradayMinuteFromHHMM(hhmm) {
+  const h = parseInt(hhmm.substring(0, 2), 10)
+  const m = parseInt(hhmm.substring(2, 4), 10)
+  const total = h * 60 + m
+  if (total >= 570 && total <= 690) return total - 570        // 9:30-11:30
+  if (total >= 780 && total <= 900) return total - 570 - 90   // 13:00-15:00
+  return -1
+}
+
+function minutesToTimeStr(min) {
+  const total = min + 570
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m
 }
 
 function parseKlineData(d) {
@@ -693,74 +712,123 @@ function drawIndexChart() {
 }
 
 function drawLineChart(ctx, W, H, pad, cw, ch) {
-  const prices = indexData.map(function(d) { return d.price })
-  const minP = Math.min.apply(null, prices)
-  const maxP = Math.max.apply(null, prices)
-  const range = maxP - minP || 1
-  const midP = (maxP + minP) / 2
-  // Extend range for visual padding
-  const ext = range * 0.08
-  const yMin = minP - ext
-  const yMax = maxP + ext
-  const yRange = yMax - yMin || 1
-  const isUp = prices.length > 1 && prices[prices.length - 1] >= prices[0]
+  const openPrice = indexData.length > 0 ? indexData[0].price : 0
+  if (!openPrice) return
 
-  // Grid lines
+  // Calculate percentage changes and find range
+  const pcts = indexData.map(function(d) { return (d.price - openPrice) / openPrice * 100 })
+  let minPct = Math.min.apply(null, pcts)
+  let maxPct = Math.max.apply(null, pcts)
+  // Symmetric around 0, at least ±0.5%
+  const absMax = Math.max(Math.abs(minPct), Math.abs(maxPct), 0.5)
+  minPct = -Math.ceil(absMax * 2) / 2
+  maxPct = Math.ceil(absMax * 2) / 2
+  const pctRange = maxPct - minPct || 1
+  const isUp = pcts.length > 1 && pcts[pcts.length - 1] >= 0
+
+  // Define time labels: 9:30, 10:30, 11:30, 13:00, 14:00, 15:00
+  const timeLabels = [570, 630, 690, 780, 840, 900] // minutes from midnight
+  const labelTexts = ['09:30', '10:30', '11:30', '13:00', '14:00', '15:00']
+
+  // Grid lines every 1%
   ctx.strokeStyle = '#21262d'
   ctx.lineWidth = 1
-  for (let i = 0; i <= 4; i++) {
-    const y = pad.top + (ch / 4) * i
+  for (let pct = Math.ceil(minPct); pct <= Math.floor(maxPct); pct++) {
+    const y = pad.top + ch - ((pct - minPct) / pctRange) * ch
     ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke()
-    const val = yMax - (yRange / 4) * i
-    ctx.fillStyle = '#8b949e'
-    ctx.font = '11px sans-serif'
-    ctx.textAlign = 'right'
-    ctx.fillText(val.toFixed(0), pad.left - 6, y + 4)
   }
-
-  // Price line
-  ctx.strokeStyle = isUp ? '#3fb950' : '#f85149'
+  // Bold 0% line
+  const yZero = pad.top + ch - ((0 - minPct) / pctRange) * ch
+  ctx.strokeStyle = '#484f58'
   ctx.lineWidth = 1.5
+  ctx.beginPath(); ctx.moveTo(pad.left, yZero); ctx.lineTo(W - pad.right, yZero); ctx.stroke()
+
+  // Draw price line (only up to current time)
+  ctx.strokeStyle = isUp ? '#3fb950' : '#f85149'
+  ctx.lineWidth = 1.8
   ctx.beginPath()
-  for (let i = 0; i < prices.length; i++) {
-    const x = pad.left + (cw / (prices.length - 1 || 1)) * i
-    const y = pad.top + ch - ((prices[i] - yMin) / yRange) * ch
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)
+  let started = false
+  for (let i = 0; i < indexData.length; i++) {
+    const d = indexData[i]
+    const tmin = intradayMinuteFromHHMM(d.time)
+    if (tmin < 0) continue
+    const x = pad.left + (tmin / 240) * cw
+    const y = pad.top + ch - ((pcts[i] - minPct) / pctRange) * ch
+    if (!started) { ctx.moveTo(x, y); started = true } else ctx.lineTo(x, y)
   }
   ctx.stroke()
 
   // Fill under line
-  const lastX = pad.left + cw
-  const lastY = pad.top + ch
-  ctx.lineTo(lastX, lastY)
-  ctx.lineTo(pad.left, lastY)
-  ctx.closePath()
-  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch)
-  grad.addColorStop(0, isUp ? 'rgba(63,185,80,0.2)' : 'rgba(248,81,73,0.2)')
-  grad.addColorStop(1, isUp ? 'rgba(63,185,80,0.02)' : 'rgba(248,81,73,0.02)')
-  ctx.fillStyle = grad
-  ctx.fill()
-
-  // Last price label
-  const lp = prices[prices.length - 1]
-  const lx = pad.left + cw
-  const ly = pad.top + ch - ((lp - yMin) / yRange) * ch
-  ctx.fillStyle = isUp ? '#3fb950' : '#f85149'
-  ctx.font = 'bold 12px sans-serif'
-  ctx.textAlign = 'left'
-  ctx.fillText(lp.toFixed(2), lx + 4, ly + 4)
-
-  // Time labels (x-axis)
-  ctx.fillStyle = '#8b949e'
-  ctx.font = '10px sans-serif'
-  ctx.textAlign = 'center'
-  const step = Math.max(1, Math.floor(prices.length / 6))
-  for (let i = 0; i < prices.length; i += step) {
-    const x = pad.left + (cw / (prices.length - 1 || 1)) * i
-    const t = indexData[i].time
-    const label = t.length > 8 ? t.substring(t.length - 5) : t
-    ctx.fillText(label, x, H - 6)
+  if (started) {
+    const lastD = indexData[indexData.length - 1]
+    const lastMin = intradayMinuteFromHHMM(lastD.time)
+    if (lastMin >= 0) {
+      const lastX = pad.left + (lastMin / 240) * cw
+      const lastY = pad.top + ch - ((pcts[pcts.length - 1] - minPct) / pctRange) * ch
+      ctx.lineTo(lastX, pad.top + ch)
+      ctx.lineTo(pad.left, pad.top + ch)
+      ctx.closePath()
+      const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ch)
+      grad.addColorStop(0, isUp ? 'rgba(63,185,80,0.25)' : 'rgba(248,81,73,0.25)')
+      grad.addColorStop(1, isUp ? 'rgba(63,185,80,0.02)' : 'rgba(248,81,73,0.02)')
+      ctx.fillStyle = grad
+      ctx.fill()
+    }
   }
+
+  // --- Left Y-axis: percentage ---
+  ctx.fillStyle = '#8b949e'
+  ctx.font = '11px sans-serif'
+  ctx.textAlign = 'right'
+  for (let pct = Math.ceil(minPct); pct <= Math.floor(maxPct); pct++) {
+    const y = pad.top + ch - ((pct - minPct) / pctRange) * ch
+    ctx.fillText((pct > 0 ? '+' : '') + pct.toFixed(0) + '%', pad.left - 6, y + 4)
+  }
+
+  // --- Right Y-axis: index values ---
+  ctx.textAlign = 'left'
+  for (let pct = Math.ceil(minPct); pct <= Math.floor(maxPct); pct++) {
+    const val = openPrice * (1 + pct / 100)
+    const y = pad.top + ch - ((pct - minPct) / pctRange) * ch
+    ctx.fillText(val.toFixed(2), W - pad.right + 6, y + 4)
+  }
+
+  // --- X-axis: time labels ---
+  ctx.fillStyle = '#8b949e'
+  ctx.font = '11px sans-serif'
+  ctx.textAlign = 'center'
+  for (let i = 0; i < timeLabels.length; i++) {
+    const tmin = timeLabels[i] - 570
+    if (tmin < 0 || tmin > 240) continue
+    const x = pad.left + (tmin / 240) * cw
+    ctx.fillText(labelTexts[i], x, H - 6)
+  }
+
+  // Vertical line at noon break
+  if (timeLabels[2] && timeLabels[3]) {
+    const xNoon = pad.left + (120 / 240) * cw
+    ctx.strokeStyle = '#30363d'
+    ctx.lineWidth = 1
+    ctx.setLineDash([3, 3])
+    ctx.beginPath(); ctx.moveTo(xNoon, pad.top); ctx.lineTo(xNoon, pad.top + ch); ctx.stroke()
+    ctx.setLineDash([])
+  }
+
+  // --- Last price label (right side, floating) ---
+  const lastPct = pcts[pcts.length - 1]
+  const ly = pad.top + ch - ((lastPct - minPct) / pctRange) * ch
+  const lastVal = indexData[indexData.length - 1].price
+  ctx.fillStyle = isUp ? '#3fb950' : '#f85149'
+  ctx.font = 'bold 13px sans-serif'
+  ctx.textAlign = 'left'
+  const label = lastVal.toFixed(2) + '  ' + (lastPct >= 0 ? '+' : '') + lastPct.toFixed(2) + '%'
+  // Label background
+  const tm = ctx.measureText(label)
+  const lx2 = W - pad.right + 6
+  ctx.fillStyle = 'rgba(13,17,23,0.7)'
+  ctx.fillRect(lx2 - 2, ly - 8, tm.width + 4, 18)
+  ctx.fillStyle = isUp ? '#3fb950' : '#f85149'
+  ctx.fillText(label, lx2, ly + 4)
 }
 
 function drawCandlestickChart(ctx, W, H, pad, cw, ch) {
