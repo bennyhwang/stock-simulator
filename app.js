@@ -650,8 +650,8 @@ function renderStrategies() {
   let html = ''
   Object.keys(grouped).forEach(function(cat) {
     const info = STRATEGY_CATS[cat] || { label: cat, color: '#8b949e' }
-    html += '<div class="card" style="margin-bottom:1rem;">'
-    html += '<h3 style="color:' + info.color + ';margin-bottom:0.8rem;">' + info.label + '</h3>'
+    html += '<div style="margin-bottom:1rem;">'
+    html += '<h3 style="color:' + info.color + ';margin-bottom:0.5rem;font-size:1.05rem;">' + info.label + '</h3>'
     grouped[cat].forEach(function(s) {
       html += '<div class="strat-card" style="padding:0.8rem 0;border-bottom:1px solid #21262d;cursor:pointer;" onclick="toggleStratPrompt(\'' + s.id + '\')">'
       html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'

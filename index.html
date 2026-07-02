@@ -92,7 +92,7 @@
     .sector-loading { text-align:center;color:#8b949e;padding:2rem;font-size:0.9rem; }
 
     /* Chart */
-    .chart-container { position:relative; width:100%; height:420px; border-radius:6px; overflow:hidden; }
+    .chart-container { position:relative; height:420px; border-radius:6px; overflow:hidden; margin:0 0.8rem; }
     .chart-container canvas { width:100%; height:100%; }
     .chart-controls { display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem; }
     .chart-controls select { padding:0.4rem 0.8rem; background:#0d1117; border:1px solid #30363d; border-radius:6px; color:#c9d1d9; font-size:0.85rem; outline:none; }
@@ -263,7 +263,7 @@
 
   <!-- Market Index -->
   <div id="secIndex" class="section">
-    <div class="card">
+    <div class="card" style="padding-bottom:1rem;">
       <div class="chart-controls">
         <select id="indexSelect" onchange="loadIndexChart()">
           <option value="sh">上證指數</option>
