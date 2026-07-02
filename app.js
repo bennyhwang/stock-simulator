@@ -74,7 +74,7 @@ function switchTab(name) {
   document.querySelectorAll('.nav-links button').forEach(b => b.classList.remove('active'))
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'))
   const btn = Array.from(document.querySelectorAll('.nav-links button')).find(b => b.textContent.includes(
-    name === 'dashboard' ? '儀表板' : name === 'trade' ? '交易' : name === 'portfolio' ? '持倉' : name === 'plans' ? '投資組合' : name === 'index' ? '大盤走勢' : '交易紀錄'
+    name === 'dashboard' ? '儀表板' : name === 'trade' ? '交易' : name === 'portfolio' ? '持倉' : name === 'plans' ? '投資組合' : name === 'index' ? '大盤走勢' : name === 'strategies' ? '量化策略' : '交易紀錄'
   ))
   if (btn) btn.classList.add('active')
   document.getElementById('sec' + name.charAt(0).toUpperCase() + name.slice(1)).classList.add('active')
@@ -82,6 +82,7 @@ function switchTab(name) {
   if (name === 'plans') renderPlans()
   if (name === 'history') loadHistory()
   if (name === 'index') { if (!indexLoaded) loadIndexChart(); else drawIndexChart() }
+  if (name === 'strategies') renderStrategies()
 }
 
 /* ===== Dashboard ===== */
@@ -567,6 +568,111 @@ function toggleSectorStocks(i) {
 function switchSectorTab(tab) {
   sectorTab = tab
   renderSectors()
+}
+
+/* ===== Quant Strategies ===== */
+const STRATEGIES = [
+  // ── 一、基础技术择时策略 ──
+  { id:'s1', cat:'technique', name:'均线趋势跟踪', sub:'单标的波段', desc:'双均线/单均线突破、多均线排列、EMA趋势跟踪。金叉买入死叉卖出，内置完整回测代码', prompt:
+'实现一个均线趋势跟踪策略：\n1. 可选双均线（快线5日/10日+慢线20日/30日/60日），金叉买入、死叉卖出\n2. 可选单均线（如20日均线）：上穿买入、下穿卖出\n3. 可选EMA替代SMA，EMA对近期价格更敏感\n4. 多均线排列：短>中>长为多头排列（买入信号），短<中<长为空头排列（卖出信号）\n5. 参数可调：快线周期N1、慢线周期N2、是否用EMA、止损比例\n6. 内置回测：计算累计收益率、年化收益、最大回撤、夏普比率、胜率\n7. 画图：显示价格曲线+均线+买卖信号标记' },
+  { id:'s2', cat:'technique', name:'震荡均值回归（RSI）', sub:'单标的波段', desc:'RSI超买超卖反转，高抛低吸震荡行情专用', prompt:
+'实现RSI均值回归策略：\n1. 计算RSI（默认14日）：RSI=100-100/(1+平均涨幅/平均跌幅)\n2. 超卖区（默认RSI<30）买入，超买区（默认RSI>70）卖出\n3. 可选加入背离检测：价格创新低但RSI底部抬升=底背离（买入信号）\n4. 参数：RSI周期N、超卖阈值、超买阈值、持仓天数上限\n5. 过滤：只在震荡行情中启用（可用ATR或布林带宽度判断）\n6. 回测指标：累计收益、胜率、盈亏比、最大回撤' },
+  { id:'s3', cat:'technique', name:'震荡均值回归（布林带）', sub:'单标的波段', desc:'布林带通道高抛低吸，触碰上下轨反向交易', prompt:
+'实现布林带均值回归策略：\n1. 计算布林带：中轨=SMA(20)，上轨=中轨+K*标准差，下轨=中轨-K*标准差\n2. 默认K=2，周期=20\n3. 价格触碰/跌破下轨买入，触碰/突破上轨卖出\n4. 可选：喇叭口扩张（波动率放大）时暂停交易，收紧时恢复\n5. 可选：配合RSI/KDJ过滤假突破\n6. 参数：周期、标准差倍数K、是否使用EMA中轨\n7. 回测：收益率曲线、交易记录、胜率' },
+  { id:'s4', cat:'technique', name:'震荡均值回归（KDJ）', sub:'单标的波段', desc:'KDJ随机指标超买超卖，短线震荡高抛低吸', prompt:
+'实现KDJ均值回归策略：\n1. 计算KDJ：K值、D值（K的均线）、J值（3K-2D）\n2. K值<20超卖（买入信号），K值>80超买（卖出信号）\n3. K线上穿D线（金叉）买入，K线下穿D线（死叉）卖出\n4. 参数：RSV天数（默认9）、K平滑（默认3）、D平滑（默认3）\n5. 可选日线/周线/月线多周期共振\n6. 回测：胜率、盈亏比、最大连续亏损' },
+  { id:'s5', cat:'technique', name:'震荡均值回归（CCI）', sub:'单标的波段', desc:'CCI顺势指标超买超卖，判断股价与统计均值的偏离', prompt:
+'实现CCI均值回归策略：\n1. 计算CCI = (TP - SMA(TP)) / (0.015 * 平均偏差)，TP=(高+低+收)/3\n2. CCI>+100超买（卖出），CCI<-100超卖（买入）\n3. CCI从+100上方回落卖出，从-100下方回升买入\n4. 参数：周期（默认14）、超买阈值（默认100）、超卖阈值（默认-100）\n5. 回测：累计收益、胜率、最大回撤' },
+  { id:'s6', cat:'technique', name:'动量突破（海龟交易法则）', sub:'单标的趋势', desc:'ATR通道突破、海龟交易法则完整实现', prompt:
+'实现海龟交易法则（唐奇安通道突破）：\n1. 入场：价格突破过去N日最高价（N=20）做多，突破过去N日最低价做空\n2. 加仓：每上涨0.5ATR加仓一次，最多加仓4次\n3. 止损：-2ATR硬止损，或价格跌破过去10日最低价\n4. ATR计算：真实波幅=max(当前高-当前低, |当前高-前收|, |当前低-前收|)，ATR=SMA(真实波幅, 14)\n5. 出场：价格跌破过去M日最低价（M=10）平多，突破过去M日最高价平空\n6. 参数：入场周期N、出场周期M、ATR周期、加仓步长、最大加仓次数\n7. 回测：完整资金曲线、胜率、盈亏比、夏普比率' },
+  { id:'s7', cat:'technique', name:'动量突破（ATR通道）', sub:'单标的趋势', desc:'ATR自适应通道突破，根据波动率动态调整入场信号', prompt:
+'实现ATR通道突破策略：\n1. 中轨=EMA(收盘价, 20)\n2. 上轨=中轨 + K*ATR(14)，下轨=中轨 - K*ATR(14)\n3. 价格突破上轨做多，跌破下轨做空\n4. K默认=2.5，可调\n5. ATR周期可调\n6. 可选：趋势过滤（价格在EMA之上只做多，之下只做空）\n7. 回测：收益率、胜率、夏普比率、最大回撤' },
+  { id:'s8', cat:'technique', name:'日内回转T+0', sub:'单标的波段', desc:'可转债/ETF/融资融券日内做T，分时高低点自动做差价', prompt:
+'实现日内T+0回转策略：\n1. 适用品种：可转债、ETF、融资融券标的（A股底仓做T）\n2. 开盘前参考昨日持仓作为底仓\n3. 分时低点买入、高点卖出（当天同数量反向平仓）\n4. 分时低点判断：价格跌破VWAP（成交量加权均价）-X%或RSI<30\n5. 分时高点判断：价格突破VWAP+X%或RSI>70\n6. 参数：X%（默认0.5%）、单笔最小差价收益（默认0.1%）、最大持仓时间（默认至收盘）\n7. 风控：日内敞口不超过底仓数量，收盘前强制平仓所有日内仓位\n8. 回测：统计T+0收益贡献、胜率、日均周转率' },
+  { id:'s9', cat:'technique', name:'涨跌停监控', sub:'单标的特殊', desc:'实时封单量监控、开板信号自动买卖、打板/排板量化自动化', prompt:
+'实现涨跌停监控策略：\n1. 监控全市场涨幅接近涨停（≥9.5%）的股票\n2. 封板检测：封单量/流通市值比值决定封板强度（比值>1%为强势封板）\n3. 开板检测：涨停价卖单突然减少或大量成交，触发卖出信号\n4. 打板买入条件：首次封板且封单强度>阈值，排板买入\n5. 排板撤单：封单强度减弱或大盘走弱时撤单\n6. 次日卖出：高开>3%立即卖出，低开< -2%开盘卖出止损\n7. 参数：封单强度阈值、排板超时时间、次日卖出规则\n8. 风控：单票仓位上限、每日最多打板次数' },
+  // ── 二、多标的选股 & 轮动策略 ──
+  { id:'s10', cat:'rotation', name:'多因子选股模型', sub:'选股', desc:'价值/成长/质量/流动性/波动率因子打分，月频调仓，支持行业中性处理', prompt:
+'实现多因子选股模型：\n1. 因子库：\n   - 价值因子：PE倒数、PB倒数、PS倒数、股息率\n   - 成长因子：营收增长率、净利润增长率、ROE增长率\n   - 质量因子：ROE、毛利率、资产负债率、经营现金流/营收\n   - 流动性因子：日均换手率、日均成交额\n   - 波动率因子：过去60日收益率标准差、Beta\n2. 打分方式：行业内排序打分（Z-score），各因子加权求和\n3. 选股范围：全市场剔除ST、*ST、上市<60天、停牌、高质押（>50%）\n4. 风控：行业中性（每个行业选股数与行业市值占比匹配）、市值中性\n5. 调仓频率：每周或每月定期调仓\n6. 回测：比较等权基准、超额收益、信息比率、行业偏离度' },
+  { id:'s11', cat:'rotation', name:'ETF动量轮动（二八轮动）', sub:'轮动', desc:'大盘/小盘ETF动量轮动，经典二八策略', prompt:
+'实现ETF二八轮动策略：\n1. 标的：沪深300ETF（大盘代表）和创业板ETF或中证500ETF（小盘代表）\n2. 动量信号：比较过去N日涨幅（默认20日），选择涨幅大的持有\n3. 如果两者都为负收益，则空仓（持有货币基金/债券ETF）\n4. 调仓频率：每日检查信号，信号变化时调仓\n5. 仓位管理：满仓轮动，不多空\n6. 可选扩展：加入第3个标的（如国债ETF形成股债轮动）\n7. 参数：动量窗口N、是否使用均线过滤噪音\n8. 回测：对比基准（沪深300持有不动）、年化收益、夏普比率、最大回撤' },
+  { id:'s12', cat:'rotation', name:'行业ETF轮动', sub:'轮动', desc:'按行业板块动量切换持仓行业，捕捉板块轮动收益', prompt:
+'实现行业ETF轮动策略：\n1. 标的池：主要行业ETF（消费、医药、科技、金融、新能源、军工、有色、煤炭等）\n2. 动量信号：计算各行业ETF过去N日涨幅（默认20日），取排名前K名持有\n3. 每月/双周调仓一次\n4. 持仓数量K=3-5个行业，等权配置\n5. 可选：加入成交量确认（动量需配合放量）\n6. 可选：加入行业景气度辅助判断（如PMI、工业增加值）\n7. 参数：动量周期N、持仓数量K、调仓频率\n8. 回测：对比行业等权基准、超额收益、换手率' },
+  { id:'s13', cat:'rotation', name:'指数增强策略', sub:'选股', desc:'对标沪深300/中证500，因子选股超额收益，控制行业风格偏离', prompt:
+'实现指数增强策略：\n1. 对标指数：沪深300、中证500、中证1000可选\n2. 选股：多因子打分（见s10），选前M只股票\n3. 约束条件：\n   - 行业偏离度不超过±5%（相对基准指数）\n   - 市值风格暴露控制在0.5个标准差以内\n   - 单股权重不超过5%\n4. 优化目标：最大化预期收益（因子综合得分），最小化跟踪误差\n5. 调仓频率：月度调仓\n6. 回测指标：超额收益、跟踪误差、信息比率、T统计量\n7. 可选：加入事件驱动因素（业绩预告、机构调研等）' },
+  { id:'s14', cat:'rotation', name:'低波动/红利策略', sub:'选股', desc:'高股息+低波动优选，长期持有类量化价值模型', prompt:
+'实现低波动红利策略：\n1. 选股池：全市场剔除ST、剔除金融行业（可选）\n2. 因子排序：\n   - 股息率（权重40%）：过去12个月股息率\n   - 低波动（权重30%）：过去60日收益率标准差，越低越好\n   - 质量（权重30%）：ROE、经营现金流为正、负债率<50%\n3. 选前20-30只股票，等权配置\n4. 季度调仓\n5. 可选：加入分红连续年限过滤（至少连续分红5年）\n6. 回测：对比中证红利指数、沪深300，看超额收益、回撤控制' },
+  // ── 三、套利 & 市场中性对冲策略 ──
+  { id:'s15', cat:'arbitrage', name:'ETF申赎套利', sub:'套利', desc:'场内价格与IOPV净值偏离瞬时套利，一二级市场价差捕捉', prompt:
+'实现ETF申赎套利策略：\n1. 监控ETF实时价格 vs IOPV（实时净值估算）的价差\n2. 折价套利：场内折价时（价格<IOPV-手续费），买入ETF+赎回获得一篮子股票卖出\n3. 溢价套利：场内溢价时（价格>IOPV+手续费），买入一篮子股票+申购ETF卖出\n4. 计算套利成本：买卖佣金、印花税、申赎费用、冲击成本\n5. 仅当预期收益>套利成本时才执行\n6. 高频轮询（秒级），一旦窗口消失立即撤单\n7. 可选：统计套利（价差回归均值而非瞬时套利）\n8. 回测：统计套利机会次数、单笔收益、总收益、胜率' },
+  { id:'s16', cat:'arbitrage', name:'期现套利（股指期货对冲）', sub:'套利', desc:'IF/IC/IM期货与对应ETF一篮子现货对冲，捕捉基差收敛收益', prompt:
+'实现期现套利策略：\n1. 标的：IF（沪深300）、IC（中证500）、IM（中证1000）对应期货及ETF现\n2. 计算基差 = 期货价格 / 现货指数价格 - 1\n2. 正向套利：基差>阈值时，买入现货（一篮子ETF/股票）+ 做空期货\n3. 反向套利：基差<-阈值时，卖出现货 + 做多期货\n4. 持仓至到期或基差回归，双边平仓\n5. 参数：开仓基差阈值、平仓基差阈值、合约选择（主力/次主力）\n6. 保证金管理：期货保证金+现货占用资金，总杠杆控制\n7. 回测：统计套利机会频率、单笔收益率、年化收益率' },
+  { id:'s17', cat:'arbitrage', name:'跨品种/跨期套利', sub:'套利', desc:'同产业链商品套利（螺纹-铁矿、豆油-棕榈油）；远月近月价差回归', prompt:
+'实现跨品种套利策略：\n1. 跨品种对：螺纹-热卷、豆油-棕榈油、焦煤-焦炭、豆粕-菜粕等\n2. 计算价差/价比 = 品种A价格 - 品种B价格 * 系数\n3. 价差突破上下轨（均值±K倍标准差）时开仓\n4. 价差回归至均值时平仓\n5. 跨期套利：同一品种近月-远月，计算持仓成本（仓储+利息+保险）\n6. 价差超出持仓成本时开仓，回归平仓\n7. 参数：回溯窗口N、开仓标准差倍数K、止损倍数\n8. 回测：累计收益、夏普比率、最大回撤、资金曲线' },
+  { id:'s18', cat:'arbitrage', name:'市场中性多空对冲', sub:'对冲', desc:'融资融券做多优质股、做空弱势股，对冲大盘系统性风险', prompt:
+'实现市场中性多空策略：\n1. 多因子打分（见s10），选得分最高的前N只做多，得分最低的前N只做空\n2. 多空市值匹配，实现Beta中性\n3. 可选：行业中性（同一行业内多空匹配，消除行业暴露）\n4. 融券来源：可融券标的、ETF融券替代个股融券\n5. 调仓频率：月度\n6. 参数：多空各持有数量N、因子权重、调仓频率\n7. 风控：单票做空仓位上限、整体杠杆率控制\n8. 回测：收益来源分解（选股Alpha vs 市场Beta剥离）、超额收益稳定性' },
+  { id:'s19', cat:'arbitrage', name:'可转债套利', sub:'套利', desc:'转股溢价套利、双底埋伏、强赎预警自动卖出', prompt:
+'实现可转债套利策略：\n1. 转股溢价套利：转股溢价率<0且可融券正股时，买入转债+融券卖空正股\n2. 双底策略：价格<面值（100）+溢价率<20%，到期收益率>3%的债性保护品种\n3. 强赎预警：正股已触发强赎条件（连续30日有15日>转股价130%），预警卖出持仓\n4. 回售套利：接近回售期、价格低于回售价的转债，博弈回售收益\n5. 下修博弈：正股跌幅大、转股价有望下修、价格在面值附近的转债\n6. 参数：溢价率阈值、到期收益率阈值、持仓周期\n7. 风控：单只转债持仓不超过总仓位10%\n8. 回测：分策略统计胜率、年化收益、最大回撤' },
+  { id:'s20', cat:'arbitrage', name:'期权套利 & 波动率交易', sub:'套利', desc:'跨式/宽跨式/备兑/Deta中性对冲/波动率曲面交易', prompt:
+'实现期权套利策略：\n1. 跨式（Straddle）：同时买入平值看涨+平值看跌，赌大幅波动\n2. 宽跨式（Strangle）：买入虚值看涨+虚值看跌，低成本博波动\n3. 备兑（Covered Call）：持有正股+卖出虚值看涨，收权利金增强收益\n4. 保护性看跌（Protective Put）：持有正股+买入虚值看跌，下行保险\n5. Delta中性：调整期权+现货组合使整体Delta≈0，做多波动率或时间价值\n6. 波动率曲面：比较隐含波动率与历史波动率，做多低估/做空高估的期限结构\n7. 参数：合约选择、行权价、到期日、Delta目标值\n8. 风控：Greeks监控（Delta/Gamma/Vega/Theta），压力测试极端行情\n9. 回测：希腊字母归因分析、波动率锥、收益分布' },
+  // ── 四、网格 & 自动化条件单 ──
+  { id:'s21', cat:'grid', name:'标准网格交易', sub:'网格', desc:'固定价差分档挂单，下跌分批买、上涨分批卖，支持单票/ETF/可转债', prompt:
+'实现标准网格交易策略：\n1. 设定网格区间（上界、下界）和网格层数N\n2. 每层等差价格：步长=(上界-下界)/N\n3. 初始持仓：在当前位置建立50%仓位\n4. 价格每下跌一层买入一层，每上涨一层卖出一层\n5. 每层买卖数量=总资金/N/标的单价\n6. 风控：单标的总仓位上限、网格突破上下界后暂停\n7. 参数：区间上下界、网格层数、单层资金量、是否等差/等比网格\n8. 回测：网格收益统计、资金利用效率、最大占用资金' },
+  { id:'s22', cat:'grid', name:'动态网格（ATR浮动网格）', sub:'网格', desc:'根据波动率自动调整网格间距，波动大放大区间、波动小缩小', prompt:
+'实现ATR动态网格策略：\n1. 基础网格参考s21\n2. 网格间距根据ATR动态调整：间距 = ATR(14) * K（K默认=1.5）\n3. ATR大时网格间距自动放大（适应高波动），ATR小时自动缩小\n4. 参考价格：网格中心价每天按最新收盘价重新定位\n5. 网格层数固定不变，间距变化\n6. 参数：ATR周期、ATR倍数K、网格层数\n7. 风控：波动率过高（ATR>阈值时）暂停网格\n8. 回测：对比固定网格，看适应性优势' },
+  { id:'s23', cat:'grid', name:'止盈止损联动策略', sub:'风控', desc:'移动止盈、分批止盈、硬性止损、持仓回撤风控自动清仓', prompt:
+'实现止盈止损联动风控策略：\n1. 固定止损：买入价下方X%设置止损单\n2. 移动止盈（Trailing Stop）：价格每上涨Y%，止盈线上移Y%，价格回落至止盈线卖出\n3. 分批止盈：达到目标价1卖出1/3，目标价2再卖1/3，目标价3清仓\n4. 持仓回撤风控：账户总资产从最高点回撤达Z%时，自动清仓所有持仓\n5. 参数：止损比例X、移动止盈步长Y、分批止盈目标价集、总回撤比例Z\n6. 适用：配合其他策略使用，作为风控模块插入\n7. 回测：统计止损次数、止盈次数、平均亏损/盈利、回撤控制效果' },
+  { id:'s24', cat:'grid', name:'一篮子条件单', sub:'自动化', desc:'批量股票统一设置价格、指标触发自动交易', prompt:
+'实现一篮子条件单系统：\n1. 创建条件单模板：价格触发/指标触发/时间触发\n2. 价格触发：价格>=目标价买入/卖出、价格<=目标价买入/卖出\n3. 指标触发：均线金叉、RSI超买超卖等（调用技术指标计算）\n4. 时间触发：定时（每天/每周X点）执行调仓信号\n5. 批量设置：选中多只股票统一应用条件单模板\n6. 条件单管理：列表查看、启用/禁用、修改、删除\n7. 历史记录：条件单触发记录\n8. 模拟执行：即使不真实下单，也记录触发的虚拟成交' },
+]
+const STRATEGY_CATS = {
+  technique: { label:'基础技术择时', color:'#58a6ff' },
+  rotation: { label:'多标的选股 & 轮动', color:'#3fb950' },
+  arbitrage: { label:'套利 & 市场中性对冲', color:'#d29922' },
+  grid: { label:'网格 & 自动化条件单', color:'#f85149' },
+}
+
+let stratFilter = 'all'
+function filterStrategies(cat) {
+  stratFilter = cat
+  document.querySelectorAll('#stratFilters .tf-btn').forEach(function(b) { b.classList.toggle('active', b.dataset.scat === cat) })
+  renderStrategies()
+}
+function renderStrategies() {
+  const el = document.getElementById('stratList')
+  if (!el) return
+  const filtered = stratFilter === 'all' ? STRATEGIES : STRATEGIES.filter(function(s) { return s.cat === stratFilter })
+  const grouped = {}
+  filtered.forEach(function(s) {
+    if (!grouped[s.cat]) grouped[s.cat] = []
+    grouped[s.cat].push(s)
+  })
+  let html = ''
+  Object.keys(grouped).forEach(function(cat) {
+    const info = STRATEGY_CATS[cat] || { label: cat, color: '#8b949e' }
+    html += '<div class="card" style="margin-bottom:1rem;">'
+    html += '<h3 style="color:' + info.color + ';margin-bottom:0.8rem;">' + info.label + '</h3>'
+    grouped[cat].forEach(function(s) {
+      html += '<div class="strat-card" style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:1rem;margin-bottom:0.6rem;cursor:pointer;" onclick="toggleStratPrompt(\'' + s.id + '\')">'
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+      html += '<div><strong style="color:#f0f6fc;font-size:0.95rem;">' + esc(s.name) + '</strong>'
+      html += '<span style="color:#8b949e;font-size:0.8rem;margin-left:0.6rem;">' + esc(s.sub) + '</span></div>'
+      html += '<span style="color:#484f58;font-size:0.8rem;">💡 点我查看提示词</span>'
+      html += '</div>'
+      html += '<p style="color:#8b949e;font-size:0.85rem;margin-top:0.3rem;">' + esc(s.desc) + '</p>'
+      html += '<div id="sp_' + s.id + '" style="display:none;margin-top:0.6rem;padding-top:0.6rem;border-top:1px solid #21262d;">'
+      html += '<pre style="background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:0.8rem;font-size:0.78rem;color:#c9d1d9;line-height:1.5;white-space:pre-wrap;max-height:300px;overflow-y:auto;">' + esc(s.prompt) + '</pre>'
+      html += '<button onclick="navigator.clipboard.writeText(document.getElementById(\'sp_' + s.id + '\').querySelector(\'pre\').textContent)" style="margin-top:0.4rem;padding:0.3rem 0.8rem;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:6px;cursor:pointer;font-size:0.75rem;">📋 复制提示词</button>'
+      html += '</div></div>'
+    })
+    html += '</div>'
+  })
+  if (!html) html = '<div style="text-align:center;color:#8b949e;padding:3rem;font-size:0.9rem;">暫無策略</div>'
+  el.innerHTML = html
+}
+function toggleStratPrompt(id) {
+  const el = document.getElementById('sp_' + id)
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'
 }
 
 /* ===== Index Chart ===== */

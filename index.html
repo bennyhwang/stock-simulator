@@ -104,6 +104,10 @@
     .chart-info .ci-value { color:#f0f6fc; font-weight:600; }
     .chart-info .ci-value.green { color:#3fb950; }
     .chart-info .ci-value.red { color:#f85149; }
+    .strat-card:hover { border-color:#30363d; }
+    .strat-card pre { scrollbar-width:thin;scrollbar-color:#30363d transparent; }
+    .strat-card pre::-webkit-scrollbar { width:4px; }
+    .strat-card pre::-webkit-scrollbar-thumb { background:#30363d;border-radius:2px; }
 
     @media (max-width: 768px) {
       .trade-form { grid-template-columns: 1fr; }
@@ -140,6 +144,7 @@
       <button onclick="switchTab('plans')">投資組合</button>
       <button onclick="switchTab('history')">交易紀錄</button>
       <button onclick="switchTab('index')">大盤走勢</button>
+      <button onclick="switchTab('strategies')">量化策略</button>
     </div>
     <div class="user-info">
       <span id="userDisplay"></span>
@@ -279,6 +284,18 @@
       <div class="ci-item"><span class="ci-label">最低 </span><span class="ci-value" id="ciLow">--</span></div>
     </div>
     <div class="chart-container"><canvas id="indexChart"></canvas></div>
+  </div>
+
+  <!-- Quant Strategies -->
+  <div id="secStrategies" class="section">
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;" id="stratFilters">
+      <button class="tf-btn active" data-scat="all" onclick="filterStrategies('all')">全部</button>
+      <button class="tf-btn" data-scat="technique" onclick="filterStrategies('technique')">📊 基础技术择时</button>
+      <button class="tf-btn" data-scat="rotation" onclick="filterStrategies('rotation')">🔄 多标的选股 & 轮动</button>
+      <button class="tf-btn" data-scat="arbitrage" onclick="filterStrategies('arbitrage')">⚡ 套利 & 市场中性对冲</button>
+      <button class="tf-btn" data-scat="grid" onclick="filterStrategies('grid')">📐 网格 & 自动化条件单</button>
+    </div>
+    <div id="stratList"></div>
   </div>
 
 <script src="app.js"></script>
