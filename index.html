@@ -263,39 +263,43 @@
 
   <!-- Market Index -->
   <div id="secIndex" class="section">
-    <div class="chart-controls">
-      <select id="indexSelect" onchange="loadIndexChart()">
-        <option value="sh">上證指數</option>
-        <option value="sz">深證成指</option>
-      </select>
-      <span style="color:#8b949e;font-size:0.85rem;">|</span>
-      <button class="tf-btn active" data-tf="intraday" onclick="switchTimeframe('intraday')">分時</button>
-      <button class="tf-btn" data-tf="daily" onclick="switchTimeframe('daily')">日K</button>
-      <button class="tf-btn" data-tf="weekly" onclick="switchTimeframe('weekly')">週K</button>
-      <button class="tf-btn" data-tf="monthly" onclick="switchTimeframe('monthly')">月K</button>
-      <span style="margin-left:auto;color:#8b949e;font-size:0.8rem;" id="indexLoading">就緒</span>
+    <div class="card">
+      <div class="chart-controls">
+        <select id="indexSelect" onchange="loadIndexChart()">
+          <option value="sh">上證指數</option>
+          <option value="sz">深證成指</option>
+        </select>
+        <span style="color:#8b949e;font-size:0.85rem;">|</span>
+        <button class="tf-btn active" data-tf="intraday" onclick="switchTimeframe('intraday')">分時</button>
+        <button class="tf-btn" data-tf="daily" onclick="switchTimeframe('daily')">日K</button>
+        <button class="tf-btn" data-tf="weekly" onclick="switchTimeframe('weekly')">週K</button>
+        <button class="tf-btn" data-tf="monthly" onclick="switchTimeframe('monthly')">月K</button>
+        <span style="margin-left:auto;color:#8b949e;font-size:0.8rem;" id="indexLoading">就緒</span>
+      </div>
+      <div class="chart-info" id="indexInfo">
+        <div class="ci-item"><span class="ci-label">最新 </span><span class="ci-value" id="ciLatest">--</span></div>
+        <div class="ci-item"><span class="ci-label">漲跌 </span><span class="ci-value" id="ciChange">--</span></div>
+        <div class="ci-item"><span class="ci-label">漲跌幅 </span><span class="ci-value" id="ciChangePct">--</span></div>
+        <div class="ci-item"><span class="ci-label">開盤 </span><span class="ci-value" id="ciOpen">--</span></div>
+        <div class="ci-item"><span class="ci-label">最高 </span><span class="ci-value" id="ciHigh">--</span></div>
+        <div class="ci-item"><span class="ci-label">最低 </span><span class="ci-value" id="ciLow">--</span></div>
+      </div>
+      <div class="chart-container"><canvas id="indexChart"></canvas></div>
     </div>
-    <div class="chart-info" id="indexInfo">
-      <div class="ci-item"><span class="ci-label">最新 </span><span class="ci-value" id="ciLatest">--</span></div>
-      <div class="ci-item"><span class="ci-label">漲跌 </span><span class="ci-value" id="ciChange">--</span></div>
-      <div class="ci-item"><span class="ci-label">漲跌幅 </span><span class="ci-value" id="ciChangePct">--</span></div>
-      <div class="ci-item"><span class="ci-label">開盤 </span><span class="ci-value" id="ciOpen">--</span></div>
-      <div class="ci-item"><span class="ci-label">最高 </span><span class="ci-value" id="ciHigh">--</span></div>
-      <div class="ci-item"><span class="ci-label">最低 </span><span class="ci-value" id="ciLow">--</span></div>
-    </div>
-    <div class="chart-container"><canvas id="indexChart"></canvas></div>
   </div>
 
   <!-- Quant Strategies -->
   <div id="secStrategies" class="section">
-    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;" id="stratFilters">
-      <button class="tf-btn active" data-scat="all" onclick="filterStrategies('all')">全部</button>
-      <button class="tf-btn" data-scat="technique" onclick="filterStrategies('technique')">📊 基础技术择时</button>
-      <button class="tf-btn" data-scat="rotation" onclick="filterStrategies('rotation')">🔄 多标的选股 & 轮动</button>
-      <button class="tf-btn" data-scat="arbitrage" onclick="filterStrategies('arbitrage')">⚡ 套利 & 市场中性对冲</button>
-      <button class="tf-btn" data-scat="grid" onclick="filterStrategies('grid')">📐 网格 & 自动化条件单</button>
+    <div class="card">
+      <div style="display:flex;gap:0.5rem;margin-bottom:1rem;flex-wrap:wrap;" id="stratFilters">
+        <button class="tf-btn active" data-scat="all" onclick="filterStrategies('all')">全部</button>
+        <button class="tf-btn" data-scat="technique" onclick="filterStrategies('technique')">📊 基础技术择时</button>
+        <button class="tf-btn" data-scat="rotation" onclick="filterStrategies('rotation')">🔄 多标的选股 & 轮动</button>
+        <button class="tf-btn" data-scat="arbitrage" onclick="filterStrategies('arbitrage')">⚡ 套利 & 市场中性对冲</button>
+        <button class="tf-btn" data-scat="grid" onclick="filterStrategies('grid')">📐 网格 & 自动化条件单</button>
+      </div>
+      <div id="stratList"></div>
     </div>
-    <div id="stratList"></div>
   </div>
 
 <script src="app.js"></script>
