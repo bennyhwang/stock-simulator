@@ -10,6 +10,7 @@ let currentPlanFilter = null // null=all, 0=no-plan, >0=plan_id
 let editingPlanId = null
 let ratesCache = { rates: null, ts: 0 }
 const RATES_TTL = 300000 // 5 min
+let fundamentalsCache = {}
 
 /* ===== Auth ===== */
 async function handleLogin(e) {
@@ -168,6 +169,8 @@ async function loadPortfolio() {
       portfolioCache.forEach(function(p) {
         if (real[p.symbol]) p.market_price = real[p.symbol].price
       })
+      // Fetch fundamentals for hover tooltip
+      fetchFundamentals(syms).then(function() { renderPortfolioSummary(); renderPortfolio() })
     }
   } catch (_) { portfolioCache = portfolioCache || [] }
   renderPortfolioSummary()
@@ -185,7 +188,7 @@ function renderPortfolioSummary() {
     const totalPnl = pnl * p.quantity
     const cur = getCurrency(p.symbol)
     return `<tr>
-      <td><strong>${esc(p.symbol)}</strong></td>
+      <td><strong onmouseenter="showStockTip(event,'${p.symbol}')" onmouseleave="hideStockTip()" style="cursor:pointer;">${esc(p.symbol)}</strong></td>
       <td>${esc(p.name || '')}</td>
       <td>${p.quantity}</td>
       <td>${cur} ${fmt(p.avg_cost)}</td>
@@ -431,7 +434,7 @@ function renderPortfolio() {
     const totalPnl = pnl * p.quantity
     const cur = getCurrency(p.symbol)
     return '<tr>'
-      + '<td><strong>' + esc(p.symbol) + '</strong></td>'
+      + '<td><strong onmouseenter="showStockTip(event,\'' + p.symbol + '\')" onmouseleave="hideStockTip()" style="cursor:pointer;">' + esc(p.symbol) + '</strong></td>'
       + '<td>' + esc(p.name || '') + '</td>'
       + '<td style="color:#8b949e;font-size:0.85rem;">' + (p.plan_id ? esc(planNames[p.plan_id] || '組合#' + p.plan_id) : '<span style="color:#484f58;">不指定</span>') + '</td>'
       + '<td>' + p.quantity + '</td>'
@@ -671,6 +674,46 @@ function renderStrategies() {
   el.innerHTML = html
 }
 function toggleStratPrompt(id) {
+  const el = document.getElementById('sp_' + id)
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'
+}
+
+/* ===== Stock Tooltip ===== */
+function showStockTip(e, symbol) {
+  const d = fundamentalsCache[symbol]
+  if (!d) return
+  const tip = document.getElementById('stockTip')
+  if (!tip) return
+  tip.innerHTML =
+    '<div style="font-weight:600;color:#f0f6fc;margin-bottom:0.4rem;border-bottom:1px solid #30363d;padding-bottom:0.3rem;">' + esc(symbol) + '</div>'
+    + '<table>'
+    + '<tr><td>總市值</td><td>' + (d.marketCap ? fmt(d.marketCap) : '--') + '</td></tr>'
+    + '<tr><td>換手率</td><td>' + (d.turnoverRate != null ? d.turnoverRate.toFixed(2) + '%' : '--') + '</td></tr>'
+    + '<tr><td>市盈率</td><td>' + (d.pe ? d.pe.toFixed(2) : '--') + '</td></tr>'
+    + '<tr><td>市淨率</td><td>' + (d.pb ? d.pb.toFixed(2) : '--') + '</td></tr>'
+    + '<tr><td>每股淨資產</td><td>' + (d.navPerShare ? fmt(d.navPerShare) : '--') + '</td></tr>'
+    + '<tr><td>60日最高</td><td>' + (d.high60 ? fmt(d.high60) : '--') + '</td></tr>'
+    + '<tr><td>60日最低</td><td>' + (d.low60 ? fmt(d.low60) : '--') + '</td></tr>'
+    + '</table>'
+  tip.style.display = 'block'
+  positionStockTip(e)
+}
+function positionStockTip(e) {
+  const tip = document.getElementById('stockTip')
+  if (!tip) return
+  const x = Math.min(e.clientX + 12, window.innerWidth - tip.offsetWidth - 10)
+  const y = Math.min(e.clientY - 10, window.innerHeight - tip.offsetHeight - 10)
+  tip.style.left = Math.max(4, x) + 'px'
+  tip.style.top = Math.max(4, y) + 'px'
+}
+function hideStockTip() {
+  const tip = document.getElementById('stockTip')
+  if (tip) tip.style.display = 'none'
+}
+document.addEventListener('mousemove', function(e) {
+  const tip = document.getElementById('stockTip')
+  if (tip && tip.style.display === 'block') positionStockTip(e)
+})
   const el = document.getElementById('sp_' + id)
   if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'
 }
@@ -1090,6 +1133,25 @@ async function getExchangeRate(targetCurrency) {
   ratesCache.rates = fb
   ratesCache.ts = now
   return fb[targetCurrency] || 1
+}
+
+async function fetchFundamentals(symbols) {
+  if (!symbols || !symbols.length) return {}
+  const missing = symbols.filter(function(s) { return !fundamentalsCache[s] })
+  if (!missing.length) return fundamentalsCache
+  try {
+    const res = await fetch('https://fuuwjceawowojecaqfru.supabase.co/functions/v1/get_stock_fundamentals', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + ANON_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ symbols: missing }),
+      signal: AbortSignal.timeout(10000)
+    })
+    if (res.ok) {
+      const data = await res.json()
+      Object.keys(data).forEach(function(s) { if (data[s] && Object.keys(data[s]).length) fundamentalsCache[s] = data[s] })
+    }
+  } catch (_) {}
+  return fundamentalsCache
 }
 
 async function getRealPrice(symbol) {
