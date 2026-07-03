@@ -680,24 +680,25 @@ function toggleStratPrompt(id) {
 
 /* ===== Stock Tooltip ===== */
 function showStockTip(e, symbol) {
-  const tip = document.getElementById('stockTip')
-  if (!tip) return
-  // Try to fetch if not cached yet
-  if (!fundamentalsCache[symbol]) fetchFundamentals([symbol])
-  const d = fundamentalsCache[symbol]
-  tip.innerHTML =
-    '<div style="font-weight:600;color:#f0f6fc;margin-bottom:0.4rem;border-bottom:1px solid #30363d;padding-bottom:0.3rem;">' + esc(symbol) + '</div>'
-    + '<table>'
-    + '<tr><td>總市值</td><td>' + (d && d.marketCap ? fmt(d.marketCap) : '--') + '</td></tr>'
-    + '<tr><td>換手率</td><td>' + (d && d.turnoverRate != null ? d.turnoverRate.toFixed(2) + '%' : '--') + '</td></tr>'
-    + '<tr><td>市盈率</td><td>' + (d && d.pe ? d.pe.toFixed(2) : '--') + '</td></tr>'
-    + '<tr><td>市淨率</td><td>' + (d && d.pb ? d.pb.toFixed(2) : '--') + '</td></tr>'
-    + '<tr><td>每股淨資產</td><td>' + (d && d.navPerShare ? fmt(d.navPerShare) : '--') + '</td></tr>'
-    + '<tr><td>60日最高</td><td>' + (d && d.high60 ? fmt(d.high60) : '--') + '</td></tr>'
-    + '<tr><td>60日最低</td><td>' + (d && d.low60 ? fmt(d.low60) : '--') + '</td></tr>'
-    + '</table>'
-  tip.style.display = 'block'
-  positionStockTip(e)
+  try {
+    const tip = document.getElementById('stockTip')
+    if (!tip) { alert('DEBUG: stockTip element not found!'); return }
+    if (!fundamentalsCache[symbol]) fetchFundamentals([symbol])
+    const d = fundamentalsCache[symbol]
+    tip.innerHTML =
+      '<div style="font-weight:600;color:#f0f6fc;margin-bottom:0.4rem;border-bottom:1px solid #30363d;padding-bottom:0.3rem;">' + esc(symbol) + '</div>'
+      + '<table>'
+      + '<tr><td>總市值</td><td>' + (d && d.marketCap ? fmt(d.marketCap) : '--') + '</td></tr>'
+      + '<tr><td>換手率</td><td>' + (d && d.turnoverRate != null ? d.turnoverRate.toFixed(2) + '%' : '--') + '</td></tr>'
+      + '<tr><td>市盈率</td><td>' + (d && d.pe ? d.pe.toFixed(2) : '--') + '</td></tr>'
+      + '<tr><td>市淨率</td><td>' + (d && d.pb ? d.pb.toFixed(2) : '--') + '</td></tr>'
+      + '<tr><td>每股淨資產</td><td>' + (d && d.navPerShare ? fmt(d.navPerShare) : '--') + '</td></tr>'
+      + '<tr><td>60日最高</td><td>' + (d && d.high60 ? fmt(d.high60) : '--') + '</td></tr>'
+      + '<tr><td>60日最低</td><td>' + (d && d.low60 ? fmt(d.low60) : '--') + '</td></tr>'
+      + '</table>'
+    tip.style.display = 'block'
+    positionStockTip(e)
+  } catch (ex) { alert('showStockTip error: ' + ex.message) }
 }
 function positionStockTip(e) {
   const tip = document.getElementById('stockTip')
