@@ -28,3 +28,6 @@ jobs:
       - run: supabase functions deploy get_stock_fundamentals --project-ref fuuwjceawowojecaqfru
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      - run: supabase functions deploy check_stop_losses --project-ref fuuwjceawowojecaqfru
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}

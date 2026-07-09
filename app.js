@@ -11,6 +11,7 @@ let editingPlanId = null
 let ratesCache = { rates: null, ts: 0 }
 const RATES_TTL = 300000 // 5 min
 let fundamentalsCache = {}
+let stopLossRules = []
 
 /* ===== Auth ===== */
 async function handleLogin(e) {
@@ -88,7 +89,7 @@ function switchTab(name) {
 
 /* ===== Dashboard ===== */
 async function initApp() {
-  await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks(), loadPlans(), loadHotSectors()])
+  await Promise.all([loadSummary(), loadPortfolio(), loadQuickStocks(), loadPlans(), loadHotSectors(), loadStopLosses()])
   loadSummary()
   // Auto-refresh hot sectors every 5 minutes
   setInterval(function() { loadHotSectors(true) }, 300000)
@@ -179,7 +180,7 @@ async function loadPortfolio() {
 function renderPortfolioSummary() {
   const tbody = document.getElementById('portfolioSummary')
   if (!portfolioCache.length) {
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#8b949e;padding:2rem;">暫無持倉</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#8b949e;padding:2rem;">暫無持倉</td></tr>'
     return
   }
   tbody.innerHTML = portfolioCache.map(p => {
@@ -187,6 +188,9 @@ function renderPortfolioSummary() {
     const mv = (p.market_price || 0) * p.quantity
     const totalPnl = pnl * p.quantity
     const cur = getCurrency(p.symbol)
+    const sl = stopLossRules.find(function(r) { return r.symbol === p.symbol && r.active })
+    const triggerPrice = p.avg_cost * 0.95
+    const slActive = !!sl
     return `<tr>
       <td><strong onmouseenter="showStockTip(event,'${p.symbol}')" onmouseleave="hideStockTip()" style="cursor:pointer;">${esc(p.symbol)}</strong></td>
       <td>${esc(p.name || '')}</td>
@@ -195,7 +199,55 @@ function renderPortfolioSummary() {
       <td class="${pnl >= 0 ? 'green' : 'red'}">${cur} ${fmt(p.market_price)}</td>
       <td>${cur} ${fmt(mv)}</td>
       <td class="${totalPnl >= 0 ? 'green' : 'red'}">${totalPnl >= 0 ? '+' : ''}${cur} ${fmt(totalPnl)}</td>
+      <td>${slActive
+        ? '<span style="color:#238636;font-size:0.8rem;">已啟用</span> <button onclick="toggleStopLoss(\'' + p.symbol + '\', ' + p.avg_cost + ')" style="padding:0.15rem 0.4rem;font-size:0.7rem;background:#da3633;border:none;color:#fff;border-radius:4px;cursor:pointer;">關閉</button>'
+        : '<button onclick="toggleStopLoss(\'' + p.symbol + '\', ' + p.avg_cost + ')" style="padding:0.15rem 0.4rem;font-size:0.7rem;background:#21262d;border:1px solid #30363d;color:#c9d1d9;border-radius:4px;cursor:pointer;">啟用</button>'
+      }</td>
     </tr>`
+  }).join('')
+  renderStopLossRules()
+}
+
+/* ===== Stop-Loss ===== */
+async function loadStopLosses() {
+  try {
+    const res = await fetch(API_BASE + '/stop_losses?select=*&username=eq.' + encodeURIComponent(currentUser.username) + '&order=id.asc', { headers: HEADERS })
+    if (res.ok) { stopLossRules = (await res.json()) || [] } else stopLossRules = []
+  } catch { stopLossRules = [] }
+  renderStopLossRules()
+}
+
+async function toggleStopLoss(symbol, avgCost) {
+  const existing = stopLossRules.find(function(r) { return r.symbol === symbol && r.active })
+  if (existing) {
+    const res = await fetch(API_BASE + '/stop_losses?id=eq.' + existing.id, { method: 'PATCH', headers: HEADERS, body: JSON.stringify({ active: false }) })
+    if (res.ok) { existing.active = false; loadStopLosses(); renderPortfolioSummary() }
+  } else {
+    const triggerPrice = Math.round(avgCost * 0.95 * 100) / 100
+    const res = await fetch(API_BASE + '/stop_losses', { method: 'POST', headers: HEADERS, body: JSON.stringify({ username: currentUser.username, symbol: symbol, trigger_price: triggerPrice }) })
+    if (res.ok) { loadStopLosses(); renderPortfolioSummary() }
+  }
+}
+
+function renderStopLossRules() {
+  const card = document.getElementById('stopLossCard')
+  const tbody = document.getElementById('stopLossTable')
+  if (!card || !tbody) return
+  const active = stopLossRules.filter(function(r) { return r.active })
+  if (!active.length) { card.style.display = 'none'; return }
+  card.style.display = 'block'
+  tbody.innerHTML = active.map(function(r) {
+    const p = portfolioCache.find(function(x) { return x.symbol === r.symbol })
+    const cur = getCurrency(r.symbol)
+    const mp = p ? p.market_price : null
+    const triggered = mp && mp <= r.trigger_price
+    return '<tr>'
+      + '<td><strong>' + esc(r.symbol) + '</strong></td>'
+      + '<td>' + cur + ' ' + fmt(r.trigger_price) + '</td>'
+      + '<td class="' + (mp ? (mp <= r.trigger_price ? 'red' : 'green') : '') + '">' + (mp ? cur + ' ' + fmt(mp) : '--') + '</td>'
+      + '<td style="color:' + (triggered ? '#da3633' : '#238636') + ';font-size:0.85rem;">' + (triggered ? '待觸發' : '正常') + '</td>'
+      + '<td><button onclick="toggleStopLoss(\'' + r.symbol + '\', 0)" style="padding:0.15rem 0.4rem;font-size:0.7rem;background:#da3633;border:none;color:#fff;border-radius:4px;cursor:pointer;">取消</button></td>'
+      + '</tr>'
   }).join('')
 }
 

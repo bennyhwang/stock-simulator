@@ -171,7 +171,13 @@
     <div class="card">
       <h2>持倉概覽</h2>
       <div class="table-wrap">
-        <table><thead><tr><th>股票</th><th>名稱</th><th>持股</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th></tr></thead><tbody id="portfolioSummary"></tbody></table>
+        <table><thead><tr><th>股票</th><th>名稱</th><th>持股</th><th>均價</th><th>現價</th><th>市值</th><th>盈虧</th><th>止損</th></tr></thead><tbody id="portfolioSummary"></tbody></table>
+      </div>
+    </div>
+    <div class="card" id="stopLossCard" style="display:none;">
+      <h2>止損規則</h2>
+      <div class="table-wrap">
+        <table><thead><tr><th>股票</th><th>觸發價</th><th>現價</th><th>狀態</th><th>操作</th></tr></thead><tbody id="stopLossTable"></tbody></table>
       </div>
     </div>
   </div>

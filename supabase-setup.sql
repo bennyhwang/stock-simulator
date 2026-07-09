@@ -378,3 +378,15 @@ BEGIN
 END;
 $$;
 GRANT EXECUTE ON FUNCTION get_plan_stocks TO anon;
+
+CREATE TABLE IF NOT EXISTS stop_losses (
+  id BIGSERIAL PRIMARY KEY,
+  username TEXT NOT NULL REFERENCES traders(username),
+  symbol TEXT NOT NULL,
+  trigger_price DECIMAL(18,2) NOT NULL,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+ALTER TABLE stop_losses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "anon_all_stop_losses" ON stop_losses;
+CREATE POLICY "anon_all_stop_losses" ON stop_losses FOR ALL TO anon USING (true) WITH CHECK (true);
