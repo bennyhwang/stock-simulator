@@ -565,7 +565,7 @@ const CUR_HKD = 'HKD'
 function esc(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') }
 
 /* ===== Hot Sectors ===== */
-let sectorData = { industries: [], concepts: [] }
+let sectorData = { industries: [], concepts: [], etfs: [] }
 let sectorTab = 'industry'
 
 async function loadHotSectors(silent) {
@@ -583,11 +583,12 @@ async function loadHotSectors(silent) {
       let data = JSON.parse(txt)
       sectorData.industries = data.industries || []
       sectorData.concepts = data.concepts || []
+      sectorData.etfs = data.etfs || []
     } else {
-      if (!silent) sectorData = { industries: [], concepts: [] }
+      if (!silent) sectorData = { industries: [], concepts: [], etfs: [] }
     }
   } catch (_) {
-    if (!silent) sectorData = { industries: [], concepts: [] }
+    if (!silent) sectorData = { industries: [], concepts: [], etfs: [] }
   }
   renderSectors()
 }
@@ -595,24 +596,40 @@ async function loadHotSectors(silent) {
 function renderSectors() {
   const el = document.getElementById('sectorList')
   if (!el) return
-  const items = sectorTab === 'industry' ? sectorData.industries : sectorData.concepts
+  let items
+  if (sectorTab === 'etf') {
+    items = sectorData.etfs
+  } else {
+    items = sectorTab === 'industry' ? sectorData.industries : sectorData.concepts
+  }
   if (!items || !items.length) {
     el.innerHTML = '<div class="sector-loading">暫無數據</div>'
     return
   }
-  el.innerHTML = items.map(function(sec, i) {
-    const stocksHtml = sec.stocks && sec.stocks.length
-      ? '<div class="sector-stocks" id="sstocks' + i + '">' + sec.stocks.map(function(stk) {
-          return '<div class="sector-stock"><span>' + esc(stk.name) + '</span><span class="' + (stk.changePct >= 0 ? 'green' : 'red') + '">' + (stk.changePct >= 0 ? '+' : '') + stk.changePct + '%</span></div>'
-        }).join('') + '</div>'
-      : ''
-    return '<div class="sector-item" onclick="toggleSectorStocks(' + i + ')">'
-      + '<span><span class="sector-name">' + esc(sec.name) + '</span>' + stocksHtml + '</span>'
-      + '<span class="sector-change ' + (sec.changePct >= 0 ? 'green' : 'red') + '">' + (sec.changePct >= 0 ? '+' : '') + sec.changePct + '%</span>'
-      + '</div>'
-  }).join('')
+  if (sectorTab === 'etf') {
+    el.innerHTML = items.map(function(etf, i) {
+      const cur = getCurrency(etf.symbol)
+      return '<div class="sector-item" style="cursor:default;">'
+        + '<span><span class="sector-name">' + esc(etf.name) + '</span><br><span style="font-size:0.75rem;color:#8b949e;">' + esc(etf.symbol) + '</span></span>'
+        + '<span style="text-align:right;"><span style="display:block;font-size:0.9rem;">' + cur + ' ' + fmt(etf.price) + '</span><span class="' + (etf.changePct >= 0 ? 'green' : 'red') + '">' + (etf.changePct >= 0 ? '+' : '') + etf.changePct + '%</span></span>'
+        + '</div>'
+    }).join('')
+  } else {
+    el.innerHTML = items.map(function(sec, i) {
+      const stocksHtml = sec.stocks && sec.stocks.length
+        ? '<div class="sector-stocks" id="sstocks' + i + '">' + sec.stocks.map(function(stk) {
+            return '<div class="sector-stock"><span>' + esc(stk.name) + '</span><span class="' + (stk.changePct >= 0 ? 'green' : 'red') + '">' + (stk.changePct >= 0 ? '+' : '') + stk.changePct + '%</span></div>'
+          }).join('') + '</div>'
+        : ''
+      return '<div class="sector-item" onclick="toggleSectorStocks(' + i + ')">'
+        + '<span><span class="sector-name">' + esc(sec.name) + '</span>' + stocksHtml + '</span>'
+        + '<span class="sector-change ' + (sec.changePct >= 0 ? 'green' : 'red') + '">' + (sec.changePct >= 0 ? '+' : '') + sec.changePct + '%</span>'
+        + '</div>'
+    }).join('')
+  }
   document.getElementById('tabIndustry').className = 'tab-btn' + (sectorTab === 'industry' ? ' active' : '')
   document.getElementById('tabConcept').className = 'tab-btn' + (sectorTab === 'concept' ? ' active' : '')
+  document.getElementById('tabEtf').className = 'tab-btn' + (sectorTab === 'etf' ? ' active' : '')
 }
 
 function toggleSectorStocks(i) {

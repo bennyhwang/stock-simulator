@@ -57,9 +57,18 @@ Deno.serve(async (req: Request) => {
       }
     }))
 
+    // ETF: fetch top 10 from Shanghai + Shenzhen, merge and take top 5 by change%
+    const etfParams = "pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fields=f2,f3,f4,f12,f14&fid=f3"
+    const [shEtf, szEtf] = await Promise.all([
+      fetchJson(`${EASTMONEY}?${etfParams}&fs=m:1+t:2`).then(d => parseStocks(d)).catch(() => []),
+      fetchJson(`${EASTMONEY}?${etfParams}&fs=m:0+t:2`).then(d => parseStocks(d)).catch(() => []),
+    ])
+    const allEtfs = [...shEtf, ...szEtf].sort((a, b) => b.changePct - a.changePct).slice(0, 5)
+
     return new Response(JSON.stringify({
       industries: sectorWithStocks.slice(0, 5),
       concepts: sectorWithStocks.slice(5),
+      etfs: allEtfs,
     }), {
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     })
