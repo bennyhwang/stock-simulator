@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const EASTMONEY = "https://push2.eastmoney.com/api/qt/clist/get"
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -9,7 +10,7 @@ const CORS_HEADERS = {
 }
 
 async function fetchJson(url: string): Promise<any> {
-  const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/" } })
+  const res = await fetch(url, { headers: { "User-Agent": UA, "Referer": "https://quote.eastmoney.com/" } })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
@@ -31,6 +32,22 @@ function parseStocks(data: any): { symbol: string; name: string; changePct: numb
     changePct: item.f3 ?? 0,
     price: item.f2 ?? 0,
   }))
+}
+
+async function fetchEtfs(): Promise<any[]> {
+  const params = "pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fields=f2,f3,f4,f12,f14&fid=f3"
+  try {
+    const data = await fetchJson(`${EASTMONEY}?${params}&fs=b:MK0021`)
+    if (!data?.data?.diff?.length) return []
+    return data.data.diff.map((item: any) => ({
+      symbol: item.f12,
+      name: item.f14,
+      changePct: item.f3 ?? 0,
+      price: item.f2 ?? 0,
+    }))
+  } catch {
+    return []
+  }
 }
 
 Deno.serve(async (req: Request) => {
@@ -57,18 +74,14 @@ Deno.serve(async (req: Request) => {
       }
     }))
 
-    // ETF: fetch top 10 from Shanghai + Shenzhen, merge and take top 5 by change%
-    const etfParams = "pn=1&pz=10&po=1&np=1&fltt=2&invt=2&fields=f2,f3,f4,f12,f14&fid=f3"
-    const [shEtf, szEtf] = await Promise.all([
-      fetchJson(`${EASTMONEY}?${etfParams}&fs=m:1+t:2`).then(d => parseStocks(d)).catch(() => []),
-      fetchJson(`${EASTMONEY}?${etfParams}&fs=m:0+t:2`).then(d => parseStocks(d)).catch(() => []),
-    ])
-    const allEtfs = [...shEtf, ...szEtf].sort((a, b) => b.changePct - a.changePct).slice(0, 5)
+    // ETF: fetch from fund center board codes
+    const etfs = await fetchEtfs()
+    const sortedEtfs = etfs.sort((a, b) => b.changePct - a.changePct).slice(0, 5)
 
     return new Response(JSON.stringify({
       industries: sectorWithStocks.slice(0, 5),
       concepts: sectorWithStocks.slice(5),
-      etfs: allEtfs,
+      etfs: sortedEtfs,
     }), {
       headers: { "Content-Type": "application/json", ...CORS_HEADERS },
     })
